@@ -41,12 +41,15 @@ distribution) is in **`doc/app-spec.md`**. That document is authoritative.
 
 ## Trust model — why signing matters
 
-Every check Result is signed with an **Ed25519 key the app generates and holds
-on-device** (Android Keystore, non-exportable). The platform verifies every
-signature; a Result whose signature fails verification is silently discarded.
-There is no reliability score and no retry penalty — but a dropped Result is
-unpaid work, so signing must be correct and byte-exact. See
-`doc/check-types.md` § "Signing the result" and `doc/agent-protocol.md`.
+Every check Result is signed with an **Ed25519 key the app generates
+on-device**. The Android Keystore only holds Ed25519 keys from API 33, so on
+minSdk 21 the keypair is generated in software (BouncyCastle) and its private
+seed is kept encrypted at rest by a non-exportable Keystore key — AES-GCM on
+API 23+, RSA on API 21–22. The platform verifies every signature; a Result
+whose signature fails verification is silently discarded. There is no
+reliability score and no retry penalty — but a dropped Result is unpaid work,
+so signing must be correct and byte-exact. See `doc/check-types.md` §
+"Signing the result" and `doc/agent-protocol.md`.
 
 ---
 
@@ -70,19 +73,27 @@ reason — treat them as settled:
   wipes credentials).
 - **Distribution: Google Play *and* direct APK** (same build).
 - **Bundled Conscrypt** for TLS 1.3 on pre-API-29 devices.
-- **ZXing** for QR scanning (no Google Play Services dependency).
+- **ZXing core** decoder + **CameraX** for QR scanning (no Google Play
+  Services dependency).
 - **OkHttp** for the WebSocket.
 - **FCM push-wake is deferred** — v1 relies only on the foreground service.
+- **Multi-module Gradle project** — `:core` (Wire-generated proto types +
+  crypto), `:data` (storage, enrollment, accruals client), `:protocol` (agent
+  WebSocket), `:checks` (executors), `:app` (Compose UI + service). Kotlin DSL,
+  version catalog.
+- **v1 check types are `http`, `tcp`, `dns`.** `tls` is deferred to a later
+  release; `ping` is excluded permanently; `smtp` is deferred.
+- **Rolling-session counters** for the in-app jobs figure; the earnings figure
+  is the lifetime total from the accruals API.
+- **All builds run in Docker** via `./build.sh` (offline by default) — no JDK,
+  Gradle, or Android SDK is installed on the host. See README § "Building".
 
-## Decisions still open — decide these deliberately
+## Decisions still open
 
-- The exact v1 check-type set. `http`, `tcp`, `dns`, `tls` are the candidates
-  (see `doc/check-types.md`); confirm each is viable on mobile. `ping` is
-  excluded permanently; `smtp` is deferred (carriers block port 25).
-- The "jobs today" / earnings display window and refresh cadence.
-- The contract of the platform enrollment endpoint (see below) — it does not
-  exist yet and must be designed jointly with the platform team.
-- The in-repo module/package structure.
+- The contract of the platform **enrollment-token redeem** endpoint — it does
+  not exist yet and must be designed jointly with the platform team (see
+  below). Until then the app is built against an `EnrollmentService` interface
+  with a fake implementation, so the rest of the enrollment flow can proceed.
 
 ---
 

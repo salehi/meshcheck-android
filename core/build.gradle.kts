@@ -32,3 +32,9 @@ wire {
         srcDir("${rootProject.projectDir}/proto")
     }
 }
+
+dependencies {
+    implementation(libs.bouncycastle)
+
+    testImplementation(libs.junit)
+}

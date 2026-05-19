@@ -1,7 +1,20 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!-- Scanning the enrollment QR code. -->
+    <uses-permission android:name="android.permission.CAMERA" />
+
+    <!-- A camera is needed to enroll, but the device can still run as a node
+         without one, so neither feature is required for install. -->
+    <uses-feature
+        android:name="android.hardware.camera"
+        android:required="false" />
+    <uses-feature
+        android:name="android.hardware.camera.autofocus"
+        android:required="false" />
+
     <application
+        android:name=".MeshCheckApplication"
         android:allowBackup="false"
         android:label="@string/app_name"
         android:supportsRtl="true"

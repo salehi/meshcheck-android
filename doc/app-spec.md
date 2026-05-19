@@ -199,7 +199,9 @@ app.
    enrollment token** (not the API key — a screenshot of the QR must not be a
    permanent credential).
 2. The app scans the QR and **generates an Ed25519 keypair on-device**; the
-   private key is stored in the Android Keystore and never leaves the device.
+   private seed never leaves the device — it is held encrypted at rest by a
+   non-exportable Android Keystore key (the Keystore cannot hold an Ed25519 key
+   itself before API 33).
 3. The app redeems the enrollment token with the platform, sending the Ed25519
    public key. The platform creates (or binds) a Node with
    `connection_class = mobile`, registers the public key, and returns the Node
@@ -215,11 +217,15 @@ phase doc — it is simpler and needs no login UI in the app.
 ## Identity and Credentials
 
 - **Node API key** — authenticates the WebSocket connection
-  (`Authorization: Bearer mck_live_…`). Stored Keystore-wrapped.
+  (`Authorization: Bearer mck_live_…`). Stored encrypted, wrapped by a
+  non-exportable Keystore key.
 - **Ed25519 keypair** — signs every `ResultSubmit`. Generated on-device at
-  enrollment; private key in Android Keystore, non-exportable; public key
-  registered via `ClientHello`. Per the protocol the public key is immutable
-  after first connection.
+  enrollment in software (BouncyCastle low-level API), because the Android
+  Keystore only holds Ed25519 keys from API 33. The private seed is kept
+  encrypted at rest by a non-exportable Keystore key (AES-GCM on API 23+, RSA
+  on API 21–22) and is decrypted only in memory to sign. The public key is
+  registered via `ClientHello`; per the protocol it is immutable after first
+  connection.
 - **Unlink** wipes both. **Force-stop / app uninstall** does not reach the
   Keystore on its own — uninstall clears app Keystore entries; a Node whose
   device is gone should also be revoked from the web dashboard.
@@ -254,18 +260,20 @@ unchanged. Implementation notes specific to Android:
   API 29, so the app **bundles Conscrypt** to provide TLS 1.3 down to API 21.
 - **Messages** — generate Kotlin types from `proto/agent.proto`; one framed
   Protobuf `Envelope` per WebSocket binary frame. No gRPC runtime.
-- **Capabilities** — the app advertises `connection_class = CONNECTION_CLASS_MOBILE`
-  and a reduced `supported_check_types` set (no raw ICMP). "Disable check types
-  the OS cannot run" is handled entirely by what `ClientHello` declares; the
-  dispatcher already filters on it — no new platform code.
+- **Capabilities** — the app advertises `connection_class = CONNECTION_CLASS_MOBILE`,
+  `can_send_icmp = false`, and a `supported_check_types` set of `http`, `tcp`,
+  `dns` for v1 (`tls` deferred). "Disable check types the OS cannot run" is
+  handled entirely by what `ClientHello` declares; the dispatcher already
+  filters on it — no new platform code.
 - **Reconnect** — on any drop, reconnect with a fresh `ServerHello`/
   `ClientHello`; expect only new Tasks, never catch-up.
 - **Result signing** — Ed25519 signature over the canonical hash defined in
   the protocol doc.
 
-Reachable check types on mobile are limited to those needing no raw sockets
-(e.g. `http`, `tcp`, `dns`, `tls`); concurrency is low. Heavy checks (headless
-browser, multi-step transactions) are out of scope per the parent phase doc.
+Reachable check types on mobile are limited to those needing no raw sockets;
+v1 ships `http`, `tcp`, and `dns` (`tls` is viable but deferred past v1).
+Concurrency is low. Heavy checks (headless browser, multi-step transactions)
+are out of scope per the parent phase doc.
 
 ---
 
@@ -279,10 +287,10 @@ browser, multi-step transactions) are out of scope per the parent phase doc.
 | TLS 1.3 on old devices | Bundled Conscrypt |
 | WebSocket | OkHttp WebSocket (works to API 21) |
 | Protobuf | Generated Kotlin from `proto/agent.proto` |
-| QR scanning | ZXing (`zxing-android-embedded`) — pure library, no Play Services, works on non-GMS devices |
-| Camera | CameraX |
+| QR scanning | ZXing core decoder (`com.google.zxing:core`) — pure library, no Play Services |
+| Camera | CameraX (preview + frame analysis) |
 | Background work | Foreground service (`specialUse`) + `WorkManager` watchdog + `BOOT_COMPLETED` receiver |
-| Credential storage | Android Keystore (Ed25519 key) + Keystore-wrapped / `EncryptedSharedPreferences` (API key) |
+| Credential storage | Software Ed25519 key + API key, each wrapped by a non-exportable Android Keystore key, stored in `SharedPreferences` |
 
 ZXing over ML Kit deliberately: ML Kit barcode scanning depends on Google Play
 Services, which the oldest target devices lack.

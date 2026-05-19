@@ -5,6 +5,10 @@ wire = "5.1.0"
 coreKtx = "1.13.1"
 activityCompose = "1.9.3"
 composeBom = "2024.10.01"
+bouncycastle = "1.78.1"
+junit = "4.13.2"
+camerax = "1.3.4"
+zxingCore = "3.4.1"
 
 [libraries]
 androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "coreKtx" }
@@ -15,6 +19,20 @@ compose-ui-graphics = { module = "androidx.compose.ui:ui-graphics" }
 compose-ui-tooling = { module = "androidx.compose.ui:ui-tooling" }
 compose-ui-tooling-preview = { module = "androidx.compose.ui:ui-tooling-preview" }
 compose-material3 = { module = "androidx.compose.material3:material3" }
+
+# Software Ed25519 via the BouncyCastle low-level API (no JCE provider
+# registration, so no clash with Android's repackaged internal BC).
+bouncycastle = { module = "org.bouncycastle:bcprov-jdk18on", version.ref = "bouncycastle" }
+
+junit = { module = "junit:junit", version.ref = "junit" }
+
+# QR scanning — CameraX for the camera (minSdk 21), ZXing core for decoding.
+# No Google Play Services dependency.
+camera-core = { module = "androidx.camera:camera-core", version.ref = "camerax" }
+camera-camera2 = { module = "androidx.camera:camera-camera2", version.ref = "camerax" }
+camera-lifecycle = { module = "androidx.camera:camera-lifecycle", version.ref = "camerax" }
+camera-view = { module = "androidx.camera:camera-view", version.ref = "camerax" }
+zxing-core = { module = "com.google.zxing:core", version.ref = "zxingCore" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

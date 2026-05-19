@@ -1,0 +1,31 @@
+package io.meshcheck.data
+
+/**
+ * The identity this device holds once enrolled.
+ *
+ * The Ed25519 *private* seed is deliberately not a field here — it never
+ * leaves [CredentialStore], which signs on the caller's behalf. This object
+ * carries only what other layers legitimately need: the Node id, the API key
+ * for the WebSocket `Authorization` header, and the public key for
+ * `ClientHello`.
+ */
+class NodeCredentials(
+    val nodeId: String,
+    val apiKey: String,
+    val ed25519PublicKey: ByteArray,
+) {
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other !is NodeCredentials) return false
+        return nodeId == other.nodeId &&
+            apiKey == other.apiKey &&
+            ed25519PublicKey.contentEquals(other.ed25519PublicKey)
+    }
+
+    override fun hashCode(): Int {
+        var result = nodeId.hashCode()
+        result = 31 * result + apiKey.hashCode()
+        result = 31 * result + ed25519PublicKey.contentHashCode()
+        return result
+    }
+}

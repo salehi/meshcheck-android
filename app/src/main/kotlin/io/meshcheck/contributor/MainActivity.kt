@@ -4,37 +4,26 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 
 /**
- * Single Activity host for the app. The real three-state contributor screen
- * replaces [PlaceholderScreen] once the UI step is reached.
+ * The app's single Activity. It only hosts Compose and routes between the
+ * enrollment flow and the (later) contributor screen; all real logic lives in
+ * the composables and the [AppContainer].
  */
 class MainActivity : ComponentActivity() {
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        val container = (application as MeshCheckApplication).container
         setContent {
             MaterialTheme {
                 Surface(modifier = Modifier.fillMaxSize()) {
-                    PlaceholderScreen()
+                    MeshCheckApp(container)
                 }
             }
         }
     }
-}
-
-@Composable
-private fun PlaceholderScreen() {
-    Text(
-        text = "MeshCheck — scaffold",
-        modifier = Modifier
-            .fillMaxSize()
-            .wrapContentSize(Alignment.Center),
-    )
 }

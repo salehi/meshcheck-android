@@ -24,5 +24,7 @@ android {
 }
 
 dependencies {
-    implementation(project(":core"))
+    // api, not implementation: :data re-exposes :core types (ResultOutcome,
+    // the crypto classes) in its own public API.
+    api(project(":core"))
 }

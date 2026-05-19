@@ -29,7 +29,7 @@ The platform defines six check types: `ping`, `tcp`, `http`, `dns`, `tls`,
 | `http` | ✅ v1 | Plain sockets / HTTP client — always available. |
 | `tcp`  | ✅ v1 | Plain TCP connect — always available. |
 | `dns`  | ✅ v1 | Standard resolver lookups — always available. |
-| `tls`  | ✅ v1 | TLS handshake over TCP — always available. |
+| `tls`  | ⚠️ deferred | Viable on mobile, but deferred past v1 to land the check pipeline first. |
 | `ping` | ❌ never | ICMP needs raw sockets; Android apps cannot open them. |
 | `smtp` | ⚠️ deferred | TCP port 25 is widely blocked on mobile carriers; revisit later. |
 
@@ -133,6 +133,8 @@ failed or returned an **empty** set (an empty set is a failure, not a pass);
 ---
 
 ## `tls`
+
+*Deferred past v1 — the contract is documented here for when `tls` lands.*
 
 **Parameters**
 

@@ -16,6 +16,28 @@ The session reads `CLAUDE.md` and `doc/` and starts warm — it has the product
 context, the locked decisions, the protocol, and the check specs without
 re-deriving anything.
 
+## Building
+
+Every build runs inside a Docker container — no JDK, Gradle, or Android SDK is
+installed on the host.
+
+First-time setup:
+
+1. Download the Android command-line tools and Gradle distribution zips into
+   `docker/vendor/` (gitignored — `docker/Dockerfile` names the exact files
+   and versions).
+2. Run `./docker/setup.sh` to build the image and install the Android SDK.
+
+Then build with the wrapper:
+
+    ./build.sh assembleDebug            # offline by default — never downloads
+    ./build.sh --online assembleDebug   # allow Gradle to fetch dependencies
+
+`build.sh` runs Gradle one-shot in a throwaway container. It is **offline by
+default** so a build never pulls dependencies unexpectedly; pass `--online` to
+permit downloads. The debug APK lands in `app/build/outputs/apk/debug/`; the
+Gradle and SDK caches live in `.docker-cache/` (gitignored).
+
 ## Remote setup
 
 This repo and the submodule wiring in the superproject are only complete once
