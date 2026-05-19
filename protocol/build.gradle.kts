@@ -24,5 +24,12 @@ android {
 }
 
 dependencies {
-    implementation(project(":core"))
+    // api, not implementation: :protocol exposes :core types (the Wire-generated
+    // protocol messages) in its public API.
+    api(project(":core"))
+
+    implementation(libs.okhttp)
+    implementation(libs.conscrypt.android)
+    // api: AgentClient.state exposes StateFlow in its public API.
+    api(libs.kotlinx.coroutines.core)
 }

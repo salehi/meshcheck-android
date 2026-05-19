@@ -105,7 +105,7 @@ The app talks to the MeshCheck platform. These are the touch points:
 |---|---|---|
 | `wss://gateway.meshcheck.io/agent` | Exists, stable | The agent WebSocket. Speak the protocol in `doc/agent-protocol.md` exactly. |
 | Enrollment-token redeem | **Does not exist yet** | The app exchanges a QR enrollment token + its Ed25519 public key for a Node and its API key. **Blocking dependency for the enrollment screen** — must be specified with the platform team first. |
-| `GET /v1/organizations/{id}/accruals` | Exists, reused as-is | The earnings figure shown in-app. |
+| `GET /v1/organizations/{id}/accruals` | Exists; **app-side stubbed** | The lifetime-earnings figure. Behind an `EarningsRepository` interface with a fake impl until enrollment yields the `organization_id` it needs. |
 | `PUT /v1/nodes/{id}/push-token` | Exists | For FCM push-wake — **deferred**, not called in v1. |
 
 ## The protocol coupling — `proto/agent.proto`

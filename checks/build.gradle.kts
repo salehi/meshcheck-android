@@ -24,5 +24,15 @@ android {
 }
 
 dependencies {
-    implementation(project(":core"))
+    // api, not implementation: :checks exposes :core's ResultOutcome in
+    // CheckResult's public API.
+    api(project(":core"))
+
+    implementation(libs.okhttp)
+    implementation(libs.dnsjava)
+    implementation(libs.kotlinx.coroutines.core)
+
+    testImplementation(libs.junit)
+    // A real org.json for unit tests — Android's bundled one is stubbed there.
+    testImplementation(libs.json)
 }
