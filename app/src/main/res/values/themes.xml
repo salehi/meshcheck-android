@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Plain no-action-bar theme; Compose draws the rest. Material.Light
+         is available from API 21, so no AppCompat dependency is needed. -->
+    <style name="Theme.MeshCheck" parent="android:Theme.Material.Light.NoActionBar" />
+</resources>

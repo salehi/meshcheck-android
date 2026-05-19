@@ -1,21 +1,26 @@
-# android-app — handoff bundle
+# MeshCheck Android App
 
-This directory is a **self-contained handoff bundle** for starting the
-MeshCheck Android contributor app as a separate project. It was assembled from
-the MeshCheck platform monorepo so a fresh session, with no access to that
-monorepo and no prior context, can pick the app up and run with it.
+This is the **MeshCheck Android contributor app** repository. It is its own
+git repository, included in the MeshCheck platform monorepo as a **git
+submodule** at `android-app/`. It was bootstrapped from a context bundle
+assembled out of that monorepo, so a fresh session with no prior context can
+pick the app up and run with it.
 
 ## How to use it
 
-1. **Move this directory out** of the MeshCheck monorepo to wherever the new
-   Android project will live, and rename it as you like (e.g. `meshcheck-android`).
-2. `git init` it as its own repository.
-3. Open a fresh Claude Code session in it.
-4. Paste the prompt from `PROMPT.md` as the first message.
+1. Open a fresh Claude Code session with **this directory** as the working
+   directory.
+2. Paste the prompt from `PROMPT.md` as the first message.
 
-The new session reads `CLAUDE.md` and `doc/` and starts warm — it has the
-product context, the locked decisions, the protocol, and the check specs
-without re-deriving anything.
+The session reads `CLAUDE.md` and `doc/` and starts warm — it has the product
+context, the locked decisions, the protocol, and the check specs without
+re-deriving anything.
+
+## Remote setup
+
+This repo and the submodule wiring in the superproject are only complete once
+this repo has a remote and the superproject's `.gitmodules` `url` points to
+it. See the project handoff notes — until then the submodule is local-only.
 
 ## What's in here
 

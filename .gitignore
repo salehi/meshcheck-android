@@ -1,0 +1,26 @@
+# Docker build caches (Gradle cache + Android SDK) — see build.sh / docker/
+.docker-cache/
+
+# Vendored Android command-line tools / Gradle zips — downloaded manually
+docker/vendor/
+
+# Gradle / build output
+.gradle/
+.kotlin/
+build/
+*/build/
+
+# Android / IDE
+local.properties
+.idea/
+*.iml
+.cxx/
+captures/
+
+# Release signing — never commit keystores or signing credentials
+*.jks
+*.keystore
+keystore.properties
+
+# OS
+.DS_Store

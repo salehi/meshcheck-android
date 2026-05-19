@@ -121,6 +121,8 @@ otherwise a sideloaded APK silently dies at a protocol bump.
   resolve here — that is expected.
 - `doc/check-types.md` — parameter/measurement JSON shapes and outcome rules
   for each check type the app executes.
+- `doc/glossary.md` — terminology reference for Android build/tooling
+  acronyms (AAR, AGP, R8, ...) and MeshCheck domain terms.
 - `proto/agent.proto` — the protocol message schema (vendored, pinned).
 
 ## Working rules
