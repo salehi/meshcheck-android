@@ -45,20 +45,20 @@ The app has exactly two states a user ever sees: **not yet enrolled**, and
 
 1. The app opens to a short explainer of what contributing means and what the
    app will do in the background.
-2. It requests the permissions it needs (see [Permissions](#permissions)),
-   including walking the user through the battery-optimization exemption.
+2. It asks for the camera permission needed to scan.
 3. It opens the camera to **scan a QR code** shown on the contributor's web
    dashboard. The QR carries a single-use enrollment token (see
    [Enrollment](#enrollment-via-qr)).
 4. On success, the device is linked to a Node and the app moves to the
-   enrolled state, Contributing.
+   enrolled screen, **Paused**. The user presses Start to begin contributing —
+   which is when the notification and battery-optimization prompts appear.
 
 ### Every launch after that — the connected screen
 
 The app skips straight to the enrolled screen; credentials persist on the
 device. The screen shows four things and nothing else:
 
-- **Jobs** — count received and count done (e.g. today).
+- **Jobs** — count received and count done this session.
 - **Earnings** — read from the existing Phase 5 accruals API.
 - **Start / Stop** — the primary control (pause and resume contributing).
 - **Unlink this device** — secondary, destructive, behind a confirmation.
@@ -96,17 +96,17 @@ button does) so the two can never be confused. There are three states:
 
 UI rules that keep state and action unambiguous:
 
-- A **state indicator** (label + colored dot) is read-only and always shows
-  the current state.
+- A **state indicator** (label + colored dot) is read-only and shows the
+  current state: "Contributing", "Connecting…" (the Transitioning state), or
+  "Paused".
 - The **action button** is labeled with the verb for the *other* state:
-  Contributing → "Stop contributing"; Paused → "Start contributing". State and
-  button flip together, so they can never disagree.
+  Contributing → "Stop contributing"; Paused → "Start contributing". It
+  reflects the user's intent rather than the live connection, so a brief
+  reconnect never disables the control or locks the user out.
 - A **consequence line** under the button says what pressing it will do.
-- During **Transitioning**, the button is disabled and shows "Stopping…" /
-  "Starting…".
 - The foreground-service **notification mirrors the state** ("Contributing" /
-  "Paused") — it is the contributor's status when the app is closed and must
-  never contradict the in-app indicator.
+  "Connecting…" / "Paused") — it is the contributor's status when the app is
+  closed and must never contradict the in-app indicator.
 
 ### Start / Stop vs. Unlink
 
@@ -174,8 +174,8 @@ service when that flag is `true`.
 
 Without the exemption, aggressive OEMs (Xiaomi, Huawei, Oppo, realme, older
 Samsung) kill the service shortly after the app is swiped away — defeating the
-whole "keep working when closed" requirement. The app must walk the user
-through the system "don't optimize" dialog during enrollment.
+whole "keep working when closed" requirement. The app walks the user through
+the system "don't optimize" dialog the first time they start contributing.
 
 ### Best-effort, not a guarantee
 
@@ -286,6 +286,7 @@ are out of scope per the parent phase doc.
 | Min / target SDK | minSdk 21 / latest stable targetSdk |
 | TLS 1.3 on old devices | Bundled Conscrypt |
 | WebSocket | OkHttp WebSocket (works to API 21) |
+| DNS lookups | dnsjava — resolves MX/TXT/NS/CNAME, beyond Android's A/AAAA-only APIs |
 | Protobuf | Generated Kotlin from `proto/agent.proto` |
 | QR scanning | ZXing core decoder (`com.google.zxing:core`) — pure library, no Play Services |
 | Camera | CameraX (preview + frame analysis) |
