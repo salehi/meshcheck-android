@@ -42,6 +42,12 @@ fi
 
 GRADLE_FLAGS="--console=plain --info --stacktrace $NET_FLAG"
 
+# With no task given, build both variants. Each variant's APK is moved into
+# dist/ as it finishes (see app/build.gradle.kts).
+if [ "$#" -eq 0 ]; then
+    set -- assembleDebug assembleRelease
+fi
+
 # Bind-mount sources must exist before `docker run`, otherwise Docker creates
 # them as root and the --user mapping below cannot write into them.
 mkdir -p "$CACHE/gradle" "$CACHE/android-sdk"

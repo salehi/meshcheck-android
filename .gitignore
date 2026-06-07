@@ -10,6 +10,9 @@ docker/vendor/
 build/
 */build/
 
+# APKs moved here at the end of a build (see app/build.gradle.kts)
+dist/
+
 # Android / IDE
 local.properties
 .idea/
