@@ -98,6 +98,7 @@ message Envelope {
     FlowControl flow_control = 40;
     Shutdown shutdown = 41;
     Error error = 42;
+    UpdateAvailable update_available = 43;
   }
 }
 
@@ -132,12 +133,15 @@ message CapabilityUpdate {
 message Capabilities {
   repeated string supported_check_types = 1;  // "ping", "tcp", "http", ...
   bool can_send_icmp = 2;       // platform-permitted raw socket access
-  GeoLocation geo = 3;          // self-declared by the Contributor (city, country)
+  GeoLocation geo = 3;          // deprecated: no longer stored (see note below)
   ConnectionClass connection_class = 4;  // self-declared
+  string name = 5;              // self-declared human-readable label; need not be
+                                // unique. An operator may override it on the Platform.
 
-  // Note: ASN is NOT declared by the agent. The Platform resolves the Node's
-  // ASN authoritatively from the source IP of the inbound WebSocket connection,
-  // using a MaxMind GeoLite2/ASN MMDB lookup. See doc/architecture/trust-and-scoring.md.
+  // Note: ASN and location are NOT trusted from the agent. The Platform resolves
+  // the Node's ASN and geo authoritatively from the source IP of the inbound
+  // WebSocket connection via MaxMind, and an operator may override either; the
+  // self-declared `geo` field is ignored. See doc/architecture/trust-and-scoring.md.
 }
 
 enum ConnectionClass {
@@ -234,6 +238,14 @@ message Error {
   string message = 2;
   string correlation_id = 3;    // optional; ties to a specific message_id
 }
+
+// === Agent self-update ===
+
+message UpdateAvailable {
+  string target_version = 1;    // semver the platform wants this agent on
+  string manifest_url = 2;      // absolute URL of the signed release manifest JSON
+  bool mandatory = 3;           // update even while tasks are in flight
+}
 ```
 
 ---
@@ -310,6 +322,14 @@ The platform may send `TaskCancel` for a Task it no longer needs — for example
 ### Shutdown
 
 The platform may close a connection cleanly by sending `Shutdown` with a reason and a grace period. The agent should finish in-flight Tasks if the grace period allows, then disconnect. The agent must not reconnect until the grace period has elapsed.
+
+### Self-Update
+
+After the handshake, once the platform knows the agent's version (from `ClientHello`), it may send `UpdateAvailable` if that version is older than the operator's configured target. It is sent **at most once per connection**: an agent that updates reconnects on the new version and no longer qualifies, and an agent that ignores the offer is nudged again on its next reconnect.
+
+`UpdateAvailable` is advisory. The agent acts on it only if it was installed with auto-update enabled and its build carries an embedded release public key; otherwise it ignores the message. When it does act, it fetches the signed manifest at `manifest_url`, verifies the manifest's Ed25519 signature against its embedded public key and each artifact's SHA-256, swaps its own binary, and exits for a clean restart on the new version. The full mechanism — signing, the offline release key, crash-loop guards — is [agent-auto-update.md](../decisions/agent-auto-update.md).
+
+This is purely additive to the protocol: an older agent that predates the message ignores the unknown `Envelope` variant, exactly as the oneof's forward-compatibility rule (below) intends.
 
 ---
 

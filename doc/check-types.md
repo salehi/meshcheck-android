@@ -74,6 +74,7 @@ and encode its measurements.
 | `status_code` | int | The HTTP response status. |
 | `latency_ms` | float | Total request time. |
 | `ttfb_ms` | float | Time to first response byte. |
+| `resolved_ips` | string[] | Optional. The IP address(es) the host resolved to; omitted when unavailable. The platform shows these on the result page to diagnose GeoDNS. |
 
 **Outcome** — `PASS` if the status matches (`expected_status` if non-zero,
 otherwise any 2xx); `FAIL` if it does not match or the request errored;

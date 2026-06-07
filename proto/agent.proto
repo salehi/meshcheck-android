@@ -42,6 +42,7 @@ message Envelope {
     FlowControl flow_control = 40;
     Shutdown shutdown = 41;
     Error error = 42;
+    UpdateAvailable update_available = 43;
   }
 }
 
@@ -78,8 +79,11 @@ message CapabilityUpdate {
 message Capabilities {
   repeated string supported_check_types = 1; // "ping", "tcp", "http", ...
   bool can_send_icmp = 2;                     // platform-permitted raw socket access
-  GeoLocation geo = 3;                        // self-declared by the Contributor
+  GeoLocation geo = 3;                        // deprecated: no longer stored (see note below)
   ConnectionClass connection_class = 4;       // self-declared
+  string name = 5;                            // self-declared human-readable label;
+                                              // need not be unique. An operator may
+                                              // override it (admin_name) on the platform.
 
   // Note: ASN is NOT declared by the agent. The Platform resolves the Node's
   // ASN authoritatively from the source IP of the inbound WebSocket
@@ -180,4 +184,19 @@ message Error {
   string code = 1;
   string message = 2;
   string correlation_id = 3; // optional; ties to a specific message_id
+}
+
+// === Agent self-update ===
+
+// UpdateAvailable tells an agent the platform wants it on a newer version. The
+// platform sends it (at most once per connection) after ClientHello, once it
+// knows the agent's current version, when an operator-set target version is
+// newer. The agent fetches and verifies the signed manifest at manifest_url
+// (Ed25519 over the manifest, plus a per-binary SHA-256), swaps its own binary,
+// and restarts. An agent with auto-update disabled, or a build with no embedded
+// release public key, ignores this message. See doc/decisions/agent-auto-update.md.
+message UpdateAvailable {
+  string target_version = 1; // semver the platform wants this agent on
+  string manifest_url = 2;   // absolute URL of the signed release manifest JSON
+  bool mandatory = 3;        // update even while tasks are in flight
 }
