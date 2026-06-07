@@ -4,10 +4,16 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import meshcheck.agent.v1.ResultOutcome
+import okhttp3.Call
+import okhttp3.EventListener
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import org.json.JSONArray
+import org.json.JSONObject
 import java.io.IOException
 import java.io.InterruptedIOException
+import java.net.InetAddress
+import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.TimeUnit
 
 /**
@@ -41,8 +47,20 @@ internal object HttpCheck {
         expectedStatus: Int,
         timeoutMs: Long,
     ): CheckResult {
+        // Captured from DNS resolution so the result can report resolved_ips
+        // (used on the platform to diagnose GeoDNS). See doc/check-types.md.
+        val resolvedIps = CopyOnWriteArrayList<String>()
         val call = client.newBuilder()
             .callTimeout(timeoutMs, TimeUnit.MILLISECONDS)
+            .eventListener(object : EventListener() {
+                override fun dnsEnd(
+                    call: Call,
+                    domainName: String,
+                    inetAddressList: List<InetAddress>,
+                ) {
+                    inetAddressList.forEach { it.hostAddress?.let(resolvedIps::add) }
+                }
+            })
             .build()
             .newCall(Request.Builder().url(target).method(method, null).build())
 
@@ -58,6 +76,7 @@ internal object HttpCheck {
                         put("status_code", response.code)
                         put("latency_ms", elapsedMs(startNanos))
                         put("ttfb_ms", ttfbMs)
+                        putResolvedIps(resolvedIps)
                     },
                 )
             }
@@ -70,10 +89,17 @@ internal object HttpCheck {
                 measurements {
                     put("error", e.message ?: "request failed")
                     put("latency_ms", elapsedMs(startNanos))
+                    putResolvedIps(resolvedIps)
                 },
             )
         }
     }
+}
+
+/** Adds `resolved_ips` only when at least one address was resolved (the field
+ *  is optional and omitted when unavailable). */
+private fun JSONObject.putResolvedIps(ips: List<String>) {
+    if (ips.isNotEmpty()) put("resolved_ips", JSONArray(ips))
 }
 
 /**

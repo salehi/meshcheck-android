@@ -1,7 +1,10 @@
 package io.meshcheck.contributor.contribution
 
 import android.Manifest
+import android.content.ActivityNotFoundException
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -17,9 +20,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -41,6 +46,7 @@ import androidx.core.content.ContextCompat
 import io.meshcheck.contributor.AppContainer
 import io.meshcheck.contributor.service.ContributionService
 import io.meshcheck.data.earnings.Earnings
+import io.meshcheck.protocol.AvailableUpdate
 import io.meshcheck.protocol.ConnectionState
 
 /**
@@ -60,6 +66,7 @@ fun ContributorScreen(
     val context = LocalContext.current
     val connectionState by container.agentClient.state.collectAsState()
     val stats by container.agentClient.stats.collectAsState()
+    val update by container.agentClient.updateAvailable.collectAsState()
 
     var wantsConnected by rememberSaveable {
         mutableStateOf(container.contributionPrefs.userWantsConnected)
@@ -96,12 +103,28 @@ fun ContributorScreen(
         wantsConnected = false
     }
 
+    // The app can't self-update; send the user to the store listing. Falls back
+    // to the web listing when the Play Store app isn't installed (direct-APK
+    // installs).
+    fun openAppStore() {
+        val uri = "details?id=${context.packageName}"
+        try {
+            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("market://$uri")))
+        } catch (e: ActivityNotFoundException) {
+            context.startActivity(
+                Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store/apps/$uri")),
+            )
+        }
+    }
+
     ContributorContent(
         indicator = connectionState.toIndicator(),
         jobsReceived = stats.received,
         jobsDone = stats.done,
         earnings = earnings,
         wantsConnected = wantsConnected,
+        update = update,
+        onUpdate = ::openAppStore,
         onToggle = { if (wantsConnected) stopContributing() else startContributing() },
         onUnlink = { showUnlinkConfirm = true },
     )
@@ -126,6 +149,8 @@ private fun ContributorContent(
     jobsDone: Int,
     earnings: Earnings?,
     wantsConnected: Boolean,
+    update: AvailableUpdate?,
+    onUpdate: () -> Unit,
     onToggle: () -> Unit,
     onUnlink: () -> Unit,
 ) {
@@ -136,6 +161,12 @@ private fun ContributorContent(
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
+        // Update nudge — non-blocking; contribution continues regardless.
+        if (update != null) {
+            UpdateBanner(update, onUpdate)
+            Spacer(Modifier.height(24.dp))
+        }
+
         // State indicator — read-only.
         Row(verticalAlignment = Alignment.CenterVertically) {
             Spacer(
@@ -185,6 +216,34 @@ private fun ContributorContent(
             Text(
                 text = "Unlink this device",
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+@Composable
+private fun UpdateBanner(update: AvailableUpdate, onUpdate: () -> Unit) {
+    Surface(
+        onClick = onUpdate,
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.secondaryContainer,
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                text = if (update.mandatory) "Update required" else "Update available",
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.onSecondaryContainer,
+            )
+            Spacer(Modifier.height(2.dp))
+            Text(
+                text = if (update.mandatory) {
+                    "Version ${update.targetVersion} is required to keep contributing. Tap to update."
+                } else {
+                    "Version ${update.targetVersion} is available. Tap to update."
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSecondaryContainer,
             )
         }
     }

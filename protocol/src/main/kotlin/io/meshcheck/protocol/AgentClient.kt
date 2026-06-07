@@ -24,6 +24,7 @@ import meshcheck.agent.v1.ShutdownReason
 import meshcheck.agent.v1.TaskAck
 import meshcheck.agent.v1.TaskAckStatus
 import meshcheck.agent.v1.TaskAssignment
+import meshcheck.agent.v1.UpdateAvailable
 import okhttp3.ConnectionSpec
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -68,6 +69,13 @@ class AgentClient(
     /** Rolling job counters since the current [start]. */
     val stats: StateFlow<SessionStats> = _stats.asStateFlow()
 
+    private val _updateAvailable = MutableStateFlow<AvailableUpdate?>(null)
+    /**
+     * Set when the platform sends an `UpdateAvailable`; null until then. The
+     * UI surfaces it as a nudge to update — the app cannot self-update.
+     */
+    val updateAvailable: StateFlow<AvailableUpdate?> = _updateAvailable.asStateFlow()
+
     private var managerJob: Job? = null
 
     /**
@@ -78,6 +86,7 @@ class AgentClient(
     fun start(apiKey: String, ed25519PublicKey: ByteArray) {
         if (managerJob?.isActive == true) return
         _stats.value = SessionStats()
+        _updateAvailable.value = null
         managerJob = scope.launch { connectLoop(apiKey, ed25519PublicKey) }
     }
 
@@ -196,6 +205,13 @@ class AgentClient(
                     webSocket.close(WS_CLOSE_NORMAL, "shutdown acknowledged")
                     outcome.complete(shutdownOutcome(envelope.shutdown!!))
                 }
+
+                envelope.update_available != null -> {
+                    // We can't self-update on Android; record it so the UI can
+                    // nudge the user to update via Play / a new APK. The
+                    // connection stays up. manifest_url is ignored.
+                    _updateAvailable.value = toAvailableUpdate(envelope.update_available!!)
+                }
                 // result_ack, error, and agent-sent types: nothing to do here.
             }
         }
@@ -286,6 +302,7 @@ class AgentClient(
             supported_check_types = config.supportedCheckTypes,
             can_send_icmp = false,
             connection_class = ConnectionClass.CONNECTION_CLASS_MOBILE,
+            name = config.nodeName,
         ),
         ed25519_pubkey = ByteString.of(*publicKey),
     )
@@ -309,6 +326,9 @@ class AgentClient(
     }
 
     // --- Helpers ------------------------------------------------------------
+
+    private fun toAvailableUpdate(message: UpdateAvailable): AvailableUpdate =
+        AvailableUpdate(targetVersion = message.target_version, mandatory = message.mandatory)
 
     private fun shutdownOutcome(shutdown: Shutdown): ConnectionOutcome = when (shutdown.reason) {
         ShutdownReason.SHUTDOWN_REASON_NODE_SUSPENDED,
