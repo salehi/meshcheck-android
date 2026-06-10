@@ -52,6 +52,29 @@ fi
 # them as root and the --user mapping below cannot write into them.
 mkdir -p "$CACHE/gradle" "$CACHE/android-sdk"
 
+# Stable signing key, generated once per machine into the gitignored
+# .docker-cache (never committed — see .gitignore). With a stable signature a
+# rebuilt APK updates an installed app in place (adb install -r); without it,
+# AGP's auto-generated debug key is ephemeral inside the throwaway container, so
+# every build is signed differently and the only way to install is to uninstall
+# first — which wipes the enrollment. app/build.gradle.kts reads this same path.
+KEYSTORE_HOST="$CACHE/signing/meshcheck-dev.jks"
+mkdir -p "$CACHE/signing"
+if [ ! -f "$KEYSTORE_HOST" ]; then
+    echo ">> build.sh: generating stable dev signing key (one-time) at .docker-cache/signing/"
+    docker run --rm \
+        --user "$(id -u):$(id -g)" \
+        -e HOME=/tmp \
+        -v "$PWD":/workspace -w /workspace \
+        "$IMAGE" \
+        keytool -genkeypair -v \
+            -keystore /workspace/.docker-cache/signing/meshcheck-dev.jks \
+            -storetype PKCS12 -alias meshcheck \
+            -keyalg RSA -keysize 2048 -validity 10000 \
+            -storepass meshcheck -keypass meshcheck \
+            -dname "CN=MeshCheck Dev (local sideload key), OU=Android, O=MeshCheck"
+fi
+
 exec docker run --rm \
     --user "$(id -u):$(id -g)" \
     -e HOME=/tmp \

@@ -58,7 +58,9 @@ The app has exactly two states a user ever sees: **not yet enrolled**, and
 The app skips straight to the enrolled screen; credentials persist on the
 device. The screen shows four things and nothing else:
 
-- **Jobs** — count received and count done this session.
+- **Jobs** — the count of jobs this session the platform confirmed it persisted
+  (`ResultAck.persisted`). Results merely sent but never acknowledged are not
+  counted — only work that reaches the server and earns.
 - **Earnings** — read from the existing Phase 5 accruals API.
 - **Start / Stop** — the primary control (pause and resume contributing).
 - **Unlink this device** — secondary, destructive, behind a confirmation.
@@ -68,7 +70,7 @@ device. The screen shows four things and nothing else:
 │  ●  Contributing                  │   ← STATE (read-only)
 │     Your phone is taking jobs      │
 │                                    │
-│     Jobs today        12 done      │
+│     Jobs this session     12       │
 │     Earnings          $0.34        │
 │                                    │
 │   ┌───────────────────────────┐    │

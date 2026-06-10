@@ -29,13 +29,33 @@ android {
         buildConfig = true
     }
 
+    // Stable local signing key so a rebuilt APK updates an installed one in
+    // place (adb install -r) instead of forcing an uninstall — an uninstall
+    // wipes the enrollment (the Keystore-encrypted Ed25519 seed). The key is
+    // NOT committed (see .gitignore: "never commit keystores"); it lives in the
+    // gitignored .docker-cache and is generated once per machine by build.sh.
+    // Both build types use it, so debug and release APKs share a signer and are
+    // mutually updatable. This is a local/sideload key, NOT a Play upload key —
+    // CI release distribution needs a persistent key injected via a secret.
+    val devKeystore = rootProject.file(".docker-cache/signing/meshcheck-dev.jks")
+    signingConfigs {
+        getByName("debug") {
+            if (devKeystore.exists()) {
+                storeFile = devKeystore
+                storePassword = "meshcheck"
+                keyAlias = "meshcheck"
+                keyPassword = "meshcheck"
+            }
+            // Fallback (no build.sh): AGP's auto-generated debug key, which is
+            // ephemeral inside the Docker build — the instability this replaces.
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
-            // Signed with the debug key for now: enrollment is still stubbed,
-            // so nothing is shipped to Play yet — this just makes the release
-            // APK installable for local testing. Swap for a real release
-            // keystore (signingConfigs + keystore.properties) before publishing.
+            // Same stable key as debug so released and local APKs are mutually
+            // updatable. Swap for a real Play upload key before publishing.
             signingConfig = signingConfigs.getByName("debug")
         }
     }

@@ -1,11 +1,14 @@
 package io.meshcheck.protocol
 
 /**
- * Rolling job counters for the current contribution session. Reset every time
- * [AgentClient.start] is called, so they count work done since the user last
+ * Rolling job counter for the current contribution session. Reset every time
+ * [AgentClient.start] is called, so it counts work done since the user last
  * pressed Start — the figure the contributor screen shows.
+ *
+ * [confirmed] counts only results the platform acknowledged as persisted
+ * (`ResultAck.persisted`) — the work that actually reaches the server and earns,
+ * not results merely handed to the WebSocket.
  */
 data class SessionStats(
-    val received: Int = 0,
-    val done: Int = 0,
+    val confirmed: Int = 0,
 )

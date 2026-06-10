@@ -38,6 +38,26 @@ default** so a build never pulls dependencies unexpectedly; pass `--online` to
 permit downloads. The debug APK lands in `app/build/outputs/apk/debug/`; the
 Gradle and SDK caches live in `.docker-cache/` (gitignored).
 
+### Signing & in-place updates
+
+A throwaway container would otherwise generate a *fresh* debug key on every
+build, so each APK would be signed differently and `adb install -r` would fail
+with `INSTALL_FAILED_UPDATE_INCOMPATIBLE` — the only way to install would be to
+uninstall first, **wiping the enrollment** (the Keystore-encrypted Ed25519
+seed). To avoid that, `build.sh` generates one **stable signing key per
+machine** into `.docker-cache/signing/meshcheck-dev.jks` (gitignored — the key
+is never committed, per `.gitignore`) and both build types use it
+(`app/build.gradle.kts`). A rebuilt APK therefore updates an installed one in
+place:
+
+    ./build.sh assembleDebug
+    ./adb/adb.sh install -r dist/app-debug.apk    # in-place update, enrollment kept
+
+This is a **local sideload key, not a Play upload key**. The key is per-machine,
+so APKs built on a *different* machine do not share this signer. To make a second
+machine — or CI — sign identically, reuse the same keystore (CI does this from a
+secret; see Releases).
+
 ## Releases
 
 Releases are cut by **pushing a git tag** — GitHub Actions
@@ -56,11 +76,29 @@ The version must be `X.Y.Z`. A `versionCode` is derived from it automatically.
 Local `./build.sh` builds are unaffected and keep the default version in
 `app/build.gradle.kts`.
 
-No repository secrets are required: the release APK is signed with the
-auto-generated debug key and the release is published with the built-in
-`GITHUB_TOKEN`. If the app later ships to Google Play, add the Play service
-account JSON as a secret (`gh secret set PLAY_SERVICE_ACCOUNT_JSON < key.json`)
-and a publish step — until then no Google credentials are involved.
+### Signing — in-place updates across releases
+
+CI does *not* run `build.sh`, so it would otherwise fall back to AGP's
+auto-generated debug key, which is **regenerated on every run** — consecutive
+releases would be signed differently and a user could not update a sideloaded
+APK in place (each version would need an uninstall, wiping enrollment). To
+prevent that, the workflow restores a **stable signing key from the
+`ANDROID_KEYSTORE_B64` repository secret** (base64 of the keystore) into
+`.docker-cache/signing/meshcheck-dev.jks` before building, the same path
+`app/build.gradle.kts` reads. It is the **same key `build.sh` uses locally**, so
+local and CI APKs share a signer and update each other in place. A missing
+secret fails the release loudly rather than shipping a non-updatable APK.
+
+Set or rotate the secret from the keystore (the value never prints):
+
+    base64 -w0 .docker-cache/signing/meshcheck-dev.jks | gh secret set ANDROID_KEYSTORE_B64
+
+Rotating to a *different* key re-signs future releases, so installs built with
+the old key must be reinstalled once. The release itself is published with the
+built-in `GITHUB_TOKEN`. If the app later ships to Google Play, add a real Play
+upload key and the Play service account JSON as a secret
+(`gh secret set PLAY_SERVICE_ACCOUNT_JSON < key.json`) plus a publish step —
+until then no Google credentials are involved.
 
 ## Remote setup
 

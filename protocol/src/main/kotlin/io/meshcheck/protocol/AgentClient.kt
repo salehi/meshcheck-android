@@ -67,8 +67,16 @@ class AgentClient(
     val state: StateFlow<ConnectionState> = _state.asStateFlow()
 
     private val _stats = MutableStateFlow(SessionStats())
-    /** Rolling job counters since the current [start]. */
+    /** Rolling job counter since the current [start]. */
     val stats: StateFlow<SessionStats> = _stats.asStateFlow()
+
+    /**
+     * Task ids whose [ResultSubmit] has been sent but not yet acknowledged.
+     * A task moves into [SessionStats.confirmed] only when its `ResultAck`
+     * arrives with `persisted = true`. Session-scoped (reset in [start]) so it
+     * survives reconnects and counts each task exactly once.
+     */
+    private val pendingAcks = ConcurrentHashMap.newKeySet<String>()
 
     private val _updateAvailable = MutableStateFlow<AvailableUpdate?>(null)
     /**
@@ -91,6 +99,7 @@ class AgentClient(
         if (managerJob?.isActive == true) return
         val url = gatewayUrl?.takeIf { it.isNotBlank() } ?: config.gatewayUrl
         _stats.value = SessionStats()
+        pendingAcks.clear()
         _updateAvailable.value = null
         AppLog.i(TAG, "Starting agent; gateway = $url")
         managerJob = scope.launch { connectLoop(apiKey, ed25519PublicKey, url) }
@@ -160,7 +169,9 @@ class AgentClient(
                 try {
                     gateway.runTask(task)?.let { result ->
                         sendEnvelope(webSocket, wrap(result = result))
-                        _stats.update { it.copy(done = it.done + 1) }
+                        // Counted as done only once the platform acks it as
+                        // persisted (see the result_ack branch in handle).
+                        pendingAcks.add(task.task_id)
                     }
                 } catch (_: CancellationException) {
                     // Task cancelled (TaskCancel, or the connection ended) —
@@ -204,7 +215,6 @@ class AgentClient(
                             wrap(taskAck = TaskAck(task.task_id, TaskAckStatus.TASK_ACK_ACCEPTED)),
                         )
                         startTask(webSocket, task)
-                        _stats.update { it.copy(received = it.received + 1) }
                     }
                 }
 
@@ -228,7 +238,19 @@ class AgentClient(
                     // connection stays up. manifest_url is ignored.
                     _updateAvailable.value = toAvailableUpdate(envelope.update_available!!)
                 }
-                // result_ack, error, and agent-sent types: nothing to do here.
+
+                envelope.result_ack != null -> {
+                    val ack = envelope.result_ack!!
+                    // Count the job only when the platform confirms it persisted
+                    // — that is the work that reaches the server and earns. The
+                    // remove() guard counts each task exactly once and ignores
+                    // acks for tasks we did not submit.
+                    if (ack.persisted && pendingAcks.remove(ack.task_id)) {
+                        _stats.update { it.copy(confirmed = it.confirmed + 1) }
+                    }
+                    AppLog.d(TAG, "ResultAck task=${ack.task_id} persisted=${ack.persisted}")
+                }
+                // error and agent-sent types: nothing to do here.
             }
         }
 

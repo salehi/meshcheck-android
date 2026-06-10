@@ -83,10 +83,19 @@ reason — treat them as settled:
   version catalog.
 - **v1 check types are `http`, `tcp`, `dns`.** `tls` is deferred to a later
   release; `ping` is excluded permanently; `smtp` is deferred.
-- **Rolling-session counters** for the in-app jobs figure; the earnings figure
-  is the lifetime total from the accruals API.
+- **Rolling-session counter** for the in-app jobs figure — it counts only
+  results the platform acknowledged as persisted (`ResultAck.persisted`), not
+  results merely sent on the wire; the earnings figure is the lifetime total
+  from the accruals API.
 - **All builds run in Docker** via `./build.sh` (offline by default) — no JDK,
   Gradle, or Android SDK is installed on the host. See README § "Building".
+- **Stable signing for in-place updates.** `build.sh` generates one signing key
+  into the gitignored `.docker-cache/signing/` (never committed) so rebuilt APKs
+  update an installed app in place (`adb install -r`) instead of forcing an
+  uninstall that wipes enrollment. CI release builds restore that **same** key
+  from the `ANDROID_KEYSTORE_B64` repo secret, so local and CI APKs share a
+  signer. Local sideload key only — not a Play upload key. See README §
+  "Building → Signing & in-place updates" and § "Releases → Signing".
 
 ## Decisions still open
 

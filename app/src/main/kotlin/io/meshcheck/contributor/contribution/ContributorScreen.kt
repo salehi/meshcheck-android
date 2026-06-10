@@ -120,8 +120,7 @@ fun ContributorScreen(
 
     ContributorContent(
         indicator = connectionState.toIndicator(),
-        jobsReceived = stats.received,
-        jobsDone = stats.done,
+        jobsConfirmed = stats.confirmed,
         earnings = earnings,
         wantsConnected = wantsConnected,
         update = update,
@@ -146,8 +145,7 @@ fun ContributorScreen(
 @Composable
 private fun ContributorContent(
     indicator: StateIndicator,
-    jobsReceived: Int,
-    jobsDone: Int,
+    jobsConfirmed: Int,
     earnings: Earnings?,
     wantsConnected: Boolean,
     update: AvailableUpdate?,
@@ -188,7 +186,7 @@ private fun ContributorContent(
 
         Spacer(Modifier.height(32.dp))
 
-        StatRow("Jobs this session", "$jobsDone done · $jobsReceived received")
+        StatRow("Jobs this session", "$jobsConfirmed")
         Spacer(Modifier.height(12.dp))
         StatRow("Earnings", earnings?.let(::formatEarnings) ?: "—")
 

@@ -13,9 +13,14 @@ on:
       - 'release-*'
 
 # The GitHub Release is created with the built-in GITHUB_TOKEN, which needs
-# write access to repository contents. No other secrets are required: the
-# release APK is signed with the auto-generated debug key (see
-# app/build.gradle.kts) and nothing is published to Google Play in v1.
+# write access to repository contents.
+#
+# Signing: the APK is signed with a stable key restored from the
+# ANDROID_KEYSTORE_B64 repository secret (base64 of the keystore), so every
+# release shares one signer and a user can update a sideloaded APK in place.
+# It is the same key build.sh uses locally (.docker-cache/signing), so locally
+# built and CI-built APKs are mutually updatable. Not a Play upload key —
+# nothing is published to Google Play in v1.
 permissions:
   contents: write
 
@@ -82,6 +87,25 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.10.2'
+
+      # Restore the stable signing key from a repository secret so every CI
+      # release is signed identically and can update a previously installed APK
+      # in place. app/build.gradle.kts reads this exact path. Without it the
+      # build would fall back to an ephemeral debug key and silently break
+      # in-place updates, so a missing secret fails the release loudly.
+      - name: Restore signing keystore
+        env:
+          ANDROID_KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+        run: |
+          set -euo pipefail
+          if [ -z "${ANDROID_KEYSTORE_B64:-}" ]; then
+            echo "::error::ANDROID_KEYSTORE_B64 secret is not set. Set it once with:"
+            echo "::error::  base64 -w0 .docker-cache/signing/meshcheck-dev.jks | gh secret set ANDROID_KEYSTORE_B64"
+            exit 1
+          fi
+          mkdir -p .docker-cache/signing
+          printf '%s' "$ANDROID_KEYSTORE_B64" | base64 -d > .docker-cache/signing/meshcheck-dev.jks
+          echo "Restored signing keystore ($(wc -c < .docker-cache/signing/meshcheck-dev.jks) bytes)"
 
       - name: Assemble ${{ steps.meta.outputs.variant }} APK
         run: >
