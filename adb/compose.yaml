@@ -1,0 +1,33 @@
+# adb-in-a-container for the MeshCheck Android app. Driven by ./adb.sh (build,
+# up, exec) so adb never has to be installed on the host — same principle as
+# build.sh / docker/.
+#
+# Host paths below are relative to this file's directory (adb/), so `..` is the
+# repo root.
+
+services:
+  adb:
+    build: .
+    image: meshcheck-adb:latest
+    container_name: meshcheck-adb
+
+    # Reach the phone on the LAN, and let `adb pair`/`connect` mDNS work.
+    network_mode: host
+
+    # Run as the invoking user (adb.sh exports these) so the adb key and any
+    # `adb pull` output aren't root-owned.
+    user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
+
+    environment:
+      HOME: /tmp
+
+    working_dir: /workspace
+    volumes:
+      # The repo, so APK paths like dist/app-release.apk resolve in-container.
+      - ..:/workspace
+      # Persist the authorized adb RSA key so the phone doesn't re-prompt.
+      - ../.docker-cache/adb:/tmp/.android
+
+    # Stay alive so the adb server — and your connections — outlive each command.
+    command: ["tail", "-f", "/dev/null"]
+    init: true
