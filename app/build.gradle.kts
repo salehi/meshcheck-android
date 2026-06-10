@@ -16,8 +16,12 @@ android {
         applicationId = "io.meshcheck.contributor"
         minSdk = 21
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.1.0"
+        // Version is the single source of truth in the git tag: the release
+        // workflow derives it from the tag (debug-X.Y.Z / release-X.Y.Z) and
+        // passes -PversionName / -PversionCode, so the built APK's version
+        // always equals the tag. Local builds fall back to these defaults.
+        versionCode = (project.findProperty("versionCode") as String?)?.toInt() ?: 1
+        versionName = (project.findProperty("versionName") as String?) ?: "0.1.0"
     }
 
     buildFeatures {

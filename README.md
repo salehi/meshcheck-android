@@ -38,6 +38,30 @@ default** so a build never pulls dependencies unexpectedly; pass `--online` to
 permit downloads. The debug APK lands in `app/build/outputs/apk/debug/`; the
 Gradle and SDK caches live in `.docker-cache/` (gitignored).
 
+## Releases
+
+Releases are cut by **pushing a git tag** — GitHub Actions
+(`.github/workflows/release.yml`) builds the APK on a hosted runner (no Docker;
+standard `setup-java` + `setup-android` + the Gradle action) and publishes a
+GitHub Release with the APK attached. CI does not need the Docker image.
+
+The **tag carries the version**: it is injected as the app's `versionName`, so
+the tag, the built APK's version, and the GitHub Release all agree. Two tag
+formats, one per build variant:
+
+    git tag debug-1.0.0   && git push origin debug-1.0.0     # assembleDebug   -> pre-release
+    git tag release-1.0.0 && git push origin release-1.0.0   # assembleRelease -> release
+
+The version must be `X.Y.Z`. A `versionCode` is derived from it automatically.
+Local `./build.sh` builds are unaffected and keep the default version in
+`app/build.gradle.kts`.
+
+No repository secrets are required: the release APK is signed with the
+auto-generated debug key and the release is published with the built-in
+`GITHUB_TOKEN`. If the app later ships to Google Play, add the Play service
+account JSON as a secret (`gh secret set PLAY_SERVICE_ACCOUNT_JSON < key.json`)
+and a publish step — until then no Google credentials are involved.
+
 ## Remote setup
 
 This repo and the submodule wiring in the superproject are only complete once

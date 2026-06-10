@@ -1,0 +1,121 @@
+name: Build & Release
+
+# Triggered by pushing a version tag. Two formats are recognised, one per
+# build variant — the tag carries the version, which becomes the app's
+# versionName and the GitHub Release name, so tag == app == release version:
+#
+#     debug-X.Y.Z     -> assembleDebug,   marked as a pre-release
+#     release-X.Y.Z   -> assembleRelease, a normal release
+on:
+  push:
+    tags:
+      - 'debug-*'
+      - 'release-*'
+
+# The GitHub Release is created with the built-in GITHUB_TOKEN, which needs
+# write access to repository contents. No other secrets are required: the
+# release APK is signed with the auto-generated debug key (see
+# app/build.gradle.kts) and nothing is published to Google Play in v1.
+permissions:
+  contents: write
+
+# Never run two releases for the same tag at once.
+concurrency:
+  group: release-${{ github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the tagged commit
+        uses: actions/checkout@v4
+
+      # Derive variant + version from the tag. The tag is the single source of
+      # truth for the version number.
+      - name: Parse tag
+        id: meta
+        run: |
+          set -euo pipefail
+          TAG="${GITHUB_REF_NAME}"
+          case "$TAG" in
+            debug-*)   VARIANT=debug;   CAP=Debug;   VERSION="${TAG#debug-}";;
+            release-*) VARIANT=release; CAP=Release; VERSION="${TAG#release-}";;
+            *) echo "::error::Unsupported tag '$TAG' (expected debug-X.Y.Z or release-X.Y.Z)"; exit 1;;
+          esac
+          # Tolerate an accidental trailing dot, e.g. debug-1.0.0.
+          VERSION="${VERSION%.}"
+          if ! printf '%s' "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::Version '$VERSION' from tag '$TAG' is not semver (X.Y.Z)"; exit 1
+          fi
+          IFS=. read -r MAJOR MINOR PATCH <<< "$VERSION"
+          # A monotonic-ish integer versionCode derived from the semver. Base-10
+          # forced so a zero-padded segment is never read as octal.
+          VERSION_CODE=$(( 10#$MAJOR * 10000 + 10#$MINOR * 100 + 10#$PATCH ))
+          {
+            echo "variant=$VARIANT"
+            echo "variant_cap=$CAP"
+            echo "version=$VERSION"
+            echo "version_code=$VERSION_CODE"
+          } >> "$GITHUB_OUTPUT"
+          echo "Building $VARIANT $VERSION (versionCode $VERSION_CODE)"
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      # Install exactly what the build needs (matches docker/setup.sh).
+      - name: Install Android SDK packages
+        run: |
+          yes | sdkmanager --licenses > /dev/null || true
+          sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0"
+
+      # The repo has no Gradle wrapper (Gradle is baked into the Docker image
+      # for local builds); pin the same version the image uses. This action
+      # also caches dependencies between runs.
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.10.2'
+
+      - name: Assemble ${{ steps.meta.outputs.variant }} APK
+        run: >
+          gradle assemble${{ steps.meta.outputs.variant_cap }}
+          -PversionName=${{ steps.meta.outputs.version }}
+          -PversionCode=${{ steps.meta.outputs.version_code }}
+          --console=plain --stacktrace
+
+      # app/build.gradle.kts moves each variant's APK into dist/. Rename the
+      # asset to carry the version so the download name is self-describing.
+      - name: Stage release asset
+        id: asset
+        run: |
+          set -euo pipefail
+          SRC="dist/app-${{ steps.meta.outputs.variant }}.apk"
+          OUT="meshcheck-${{ steps.meta.outputs.version }}-${{ steps.meta.outputs.variant }}.apk"
+          if [ ! -f "$SRC" ]; then
+            echo "::error::Expected APK $SRC not found"; ls -la dist || true; exit 1
+          fi
+          cp "$SRC" "$OUT"
+          echo "path=$OUT" >> "$GITHUB_OUTPUT"
+
+      - name: Upload APK as a build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.asset.outputs.path }}
+          path: ${{ steps.asset.outputs.path }}
+          if-no-files-found: error
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: MeshCheck ${{ steps.meta.outputs.version }} (${{ steps.meta.outputs.variant }})
+          prerelease: ${{ steps.meta.outputs.variant == 'debug' }}
+          generate_release_notes: true
+          files: ${{ steps.asset.outputs.path }}
