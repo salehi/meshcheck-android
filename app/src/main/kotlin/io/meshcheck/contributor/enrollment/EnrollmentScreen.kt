@@ -4,18 +4,25 @@ import android.Manifest
 import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -25,6 +32,18 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.RoundRect
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathFillType
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -161,6 +180,10 @@ private fun ScanningContent(
 ) {
     // Guard against the analyzer firing twice before the screen recomposes.
     var consumed by remember { mutableStateOf(false) }
+    // Window-space bounds of the viewfinder square and of the scrim canvas,
+    // so the scrim can cut its hole exactly where the square is laid out.
+    var frameBounds by remember { mutableStateOf<Rect?>(null) }
+    var scrimOrigin by remember { mutableStateOf(Offset.Zero) }
 
     Box(modifier = Modifier.fillMaxSize()) {
         QrScanner(
@@ -172,25 +195,122 @@ private fun ScanningContent(
             },
             modifier = Modifier.fillMaxSize(),
         )
-        Surface(
+        Canvas(
             modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .fillMaxWidth(),
-            color = MaterialTheme.colorScheme.surface,
+                .fillMaxSize()
+                .onGloballyPositioned { scrimOrigin = it.positionInRoot() },
         ) {
-            Column(
-                modifier = Modifier.padding(24.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                Text(
-                    text = "Point the camera at the QR code on your MeshCheck dashboard.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    textAlign = TextAlign.Center,
-                )
-                Spacer(Modifier.height(12.dp))
-                Button(onClick = onCancel) {
-                    Text("Cancel")
+            val scrim = Color.Black.copy(alpha = 0.6f)
+            val hole = frameBounds?.translate(-scrimOrigin)
+            if (hole == null) {
+                drawRect(scrim)
+            } else {
+                val path = Path().apply {
+                    fillType = PathFillType.EvenOdd
+                    addRect(Rect(Offset.Zero, size))
+                    addRoundRect(RoundRect(hole, CornerRadius(16.dp.toPx())))
                 }
+                drawPath(path, scrim)
+            }
+        }
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .navigationBarsPadding()
+                .padding(24.dp),
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            QrViewfinderFrame(
+                modifier = Modifier
+                    .fillMaxWidth(0.72f)
+                    .aspectRatio(1f)
+                    .onGloballyPositioned { frameBounds = it.boundsInRoot() },
+            )
+            Spacer(Modifier.height(20.dp))
+            Text(
+                text = "Point the camera at the QR code on your MeshCheck " +
+                    "dashboard — a square of small black-and-white dots, " +
+                    "like the pattern shown in the box.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = Color.White,
+                textAlign = TextAlign.Center,
+            )
+            Spacer(Modifier.height(16.dp))
+            Button(onClick = onCancel) {
+                Text("Cancel")
+            }
+        }
+    }
+}
+
+/**
+ * The scan viewfinder: corner brackets marking the square, and a faint
+ * pulsing QR-code silhouette inside it — three corner "eyes" plus scattered
+ * dots — so someone who has never seen a QR code knows what kind of image
+ * the camera is looking for.
+ */
+@Composable
+private fun QrViewfinderFrame(modifier: Modifier = Modifier) {
+    val pulse by rememberInfiniteTransition(label = "qr-hint").animateFloat(
+        initialValue = 0.18f,
+        targetValue = 0.45f,
+        animationSpec = infiniteRepeatable(tween(durationMillis = 1000), RepeatMode.Reverse),
+        label = "qr-hint-alpha",
+    )
+
+    Canvas(modifier = modifier) {
+        val white = Color.White
+
+        // Corner brackets.
+        val stroke = 4.dp.toPx()
+        val arm = size.minDimension * 0.12f
+        val c = stroke / 2f
+        val w = size.width
+        val h = size.height
+        fun bracket(corner: Offset, dx: Float, dy: Float) {
+            drawLine(white, corner, Offset(corner.x + dx * arm, corner.y), stroke, StrokeCap.Round)
+            drawLine(white, corner, Offset(corner.x, corner.y + dy * arm), stroke, StrokeCap.Round)
+        }
+        bracket(Offset(c, c), 1f, 1f)
+        bracket(Offset(w - c, c), -1f, 1f)
+        bracket(Offset(c, h - c), 1f, -1f)
+        bracket(Offset(w - c, h - c), -1f, -1f)
+
+        // Ghost QR pattern on a 21×21 grid (the smallest real QR version).
+        val grid = 21
+        val inset = size.minDimension * 0.18f
+        val cell = (size.minDimension - 2f * inset) / grid
+        fun module(x: Int, y: Int, alpha: Float) {
+            drawRect(
+                color = white.copy(alpha = alpha),
+                topLeft = Offset(inset + x * cell, inset + y * cell),
+                size = Size(cell * 0.8f, cell * 0.8f),
+            )
+        }
+
+        // The three finder "eyes": a 7×7 ring with a 3×3 core.
+        val finderAlpha = (pulse + 0.15f).coerceAtMost(1f)
+        fun finder(ox: Int, oy: Int) {
+            for (x in 0..6) {
+                for (y in 0..6) {
+                    val ring = x == 0 || x == 6 || y == 0 || y == 6
+                    val core = x in 2..4 && y in 2..4
+                    if (ring || core) module(ox + x, oy + y, finderAlpha)
+                }
+            }
+        }
+        finder(0, 0)
+        finder(grid - 7, 0)
+        finder(0, grid - 7)
+
+        // Scattered data dots, skipping the finder zones (plus separator).
+        for (x in 0 until grid) {
+            for (y in 0 until grid) {
+                val inFinder = (x < 8 && y < 8) || (x >= grid - 8 && y < 8) || (x < 8 && y >= grid - 8)
+                if (inFinder) continue
+                // Deterministic pseudo-random scatter, ~40% fill like a real code.
+                if ((x * 7 + y * 11 + x * y) % 5 < 2) module(x, y, pulse)
             }
         }
     }
