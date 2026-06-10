@@ -14,6 +14,14 @@ services:
     # Reach the phone on the LAN, and let `adb pair`/`connect` mDNS work.
     network_mode: host
 
+    # Expose USB so a cable-attached phone is visible (in addition to wireless).
+    # privileged: lifts Docker's device-cgroup block on the bus nodes.
+    # The /dev/bus/usb mount (whole tree, not one node) means the device still
+    # resolves if adb resets it and the kernel re-enumerates it under a new node.
+    # Access still relies on the host udev uaccess ACL granting the invoking
+    # user rw on the node; if a fresh enumeration loses it, replug the phone.
+    privileged: true
+
     # Run as the invoking user (adb.sh exports these) so the adb key and any
     # `adb pull` output aren't root-owned.
     user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
@@ -27,6 +35,8 @@ services:
       - ..:/workspace
       # Persist the authorized adb RSA key so the phone doesn't re-prompt.
       - ../.docker-cache/adb:/tmp/.android
+      # USB device nodes for a cable-attached phone (see privileged: above).
+      - /dev/bus/usb:/dev/bus/usb
 
     # Stay alive so the adb server — and your connections — outlive each command.
     command: ["tail", "-f", "/dev/null"]
