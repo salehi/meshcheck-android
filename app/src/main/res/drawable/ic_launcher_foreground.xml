@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Launcher icon foreground: the brand "node" — a hexagon (matching
+     ic_notification.xml) carrying a check, linked by mesh edges to three peer
+     nodes. White-on-transparent so it reads on the green adaptive background.
+     Content is kept inside the adaptive-icon safe zone (centre 66 of 108). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Mesh edges: faint white spokes from the central node out to peers. -->
+    <path
+        android:strokeColor="#A6FFFFFF"
+        android:strokeWidth="3"
+        android:strokeLineCap="round"
+        android:pathData="M69.6,46 L74,34" />
+    <path
+        android:strokeColor="#A6FFFFFF"
+        android:strokeWidth="3"
+        android:strokeLineCap="round"
+        android:pathData="M39,47 L28,50" />
+    <path
+        android:strokeColor="#A6FFFFFF"
+        android:strokeWidth="3"
+        android:strokeLineCap="round"
+        android:pathData="M54,72 L54,82" />
+
+    <!-- Peer nodes. -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M70,34 a4,4 0 1,0 8,0 a4,4 0 1,0 -8,0 z" />
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M24,50 a4,4 0 1,0 8,0 a4,4 0 1,0 -8,0 z" />
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M50,82 a4,4 0 1,0 8,0 a4,4 0 1,0 -8,0 z" />
+
+    <!-- Central node: a pointy-top hexagon, the same silhouette as the
+         notification icon. -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M54,36 L69.6,45 L69.6,63 L54,72 L38.4,63 L38.4,45 Z" />
+
+    <!-- The "check": a tick cut into the node in deep brand green. -->
+    <path
+        android:strokeColor="#FF1B5E20"
+        android:strokeWidth="5.5"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M45,54 L51,61 L65,46" />
+</vector>

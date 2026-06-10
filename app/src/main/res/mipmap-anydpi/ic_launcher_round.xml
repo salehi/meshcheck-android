@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Legacy round launcher icon (API 21-25): the green disc background composed
+     with the shared vector foreground. -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="@drawable/ic_launcher_legacy_bg_round" />
+    <item android:drawable="@drawable/ic_launcher_foreground" />
+</layer-list>

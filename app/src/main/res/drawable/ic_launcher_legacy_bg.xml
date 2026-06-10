@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Legacy (API 21-25) icon background: a rounded square with the brand-green
+     gradient. Pre-adaptive launchers draw the icon as-is, so the shape lives
+     here rather than coming from a system mask. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path android:pathData="M26,4 H82 A22,22 0 0 1 104,26 V82 A22,22 0 0 1 82,104 H26 A22,22 0 0 1 4,82 V26 A22,22 0 0 1 26,4 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="linear"
+                android:startX="4"
+                android:startY="4"
+                android:endX="104"
+                android:endY="104">
+                <item android:offset="0" android:color="#FF43A047" />
+                <item android:offset="0.5" android:color="#FF2E7D32" />
+                <item android:offset="1" android:color="#FF1B5E20" />
+            </gradient>
+        </aapt:attr>
+    </path>
+</vector>

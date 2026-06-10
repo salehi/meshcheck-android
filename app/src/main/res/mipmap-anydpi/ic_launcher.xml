@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Legacy launcher icon (API 21-25, no adaptive-icon support): the rounded
+     green background composed with the shared vector foreground. All-vector,
+     so it stays crisp at every density without bundled PNGs. -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="@drawable/ic_launcher_legacy_bg" />
+    <item android:drawable="@drawable/ic_launcher_foreground" />
+</layer-list>
