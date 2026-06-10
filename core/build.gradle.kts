@@ -35,6 +35,9 @@ wire {
 
 dependencies {
     implementation(libs.bouncycastle)
+    // api: AppLog.entries exposes a StateFlow in :core's public API, observed by
+    // :app. Already in the build cache (used by :protocol and :app downstream).
+    api(libs.kotlinx.coroutines.core)
 
     testImplementation(libs.junit)
 }

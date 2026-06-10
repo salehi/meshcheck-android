@@ -195,19 +195,23 @@ Enrollment links one device to one Node without putting account login in the
 app.
 
 1. The contributor opens the web dashboard and chooses to add an Android
-   device. The dashboard shows a QR encoding a **single-use, short-lived
-   enrollment token** (not the API key — a screenshot of the QR must not be a
-   permanent credential).
+   device. The dashboard **creates the Node** (`connection_class = mobile`) and
+   mints a long-lived **device-enrollment JWT** bound to that node and org. It
+   shows a QR encoding a base64-JSON envelope:
+   `{v, typ:"meshcheck-enroll", api, gateway, token}`, where `token` is that
+   JWT. (The JWT is the credential — treat the QR like a password.)
 2. The app scans the QR and **generates an Ed25519 keypair on-device**; the
    private seed never leaves the device — it is held encrypted at rest by a
    non-exportable Android Keystore key (the Keystore cannot hold an Ed25519 key
    itself before API 33).
-3. The app redeems the enrollment token with the platform, sending the Ed25519
-   public key. The platform creates (or binds) a Node with
-   `connection_class = mobile`, registers the public key, and returns the Node
-   API key.
-4. The app stores the API key (Keystore-wrapped / `EncryptedSharedPreferences`)
-   and connects.
+3. Enrollment is **entirely local — there is no redeem call.** The
+   device-enrollment JWT *is* the gateway credential: the app stores it and
+   presents it verbatim as `Authorization: Bearer <jwt>`, exactly like a Node
+   API key. The Node already exists; the app reads its id from the JWT `nid`
+   claim. The Ed25519 public key is registered later, in the first
+   `ClientHello`.
+4. The app stores the credential (Keystore-wrapped) **and the `gateway` URL from
+   the QR** (so it connects to the right deployment), then connects.
 
 The QR replaces the "single sign-on between web and app" idea from the parent
 phase doc — it is simpler and needs no login UI in the app.
@@ -216,9 +220,11 @@ phase doc — it is simpler and needs no login UI in the app.
 
 ## Identity and Credentials
 
-- **Node API key** — authenticates the WebSocket connection
-  (`Authorization: Bearer mck_live_…`). Stored encrypted, wrapped by a
-  non-exportable Keystore key.
+- **Gateway bearer credential** — authenticates the WebSocket connection
+  (`Authorization: Bearer <token>`). For a mobile device this is the
+  device-enrollment JWT from the QR (not an `mck_live_…` API key); the platform
+  accepts a node-scoped JWT exactly like an API key. Stored encrypted, wrapped
+  by a non-exportable Keystore key.
 - **Ed25519 keypair** — signs every `ResultSubmit`. Generated on-device at
   enrollment in software (BouncyCastle low-level API), because the Android
   Keystore only holds Ed25519 keys from API 33. The private seed is kept
@@ -334,19 +340,16 @@ silently die at a protocol bump.
 
 ## Platform-Side Additions Needed
 
-Most of the platform side is already built (push-token registration, push
-dispatch — see [CLAUDE.md](../CLAUDE.md)). The QR
-enrollment flow is the one piece that does **not** yet exist:
+The platform side is already built. The QR-enrollment **issue** path exists:
+the dashboard's "add an Android device" creates the Node and mints a
+device-enrollment JWT, wrapped in the QR envelope (see "Enrollment via QR").
 
-- An **enrollment-token issue** path: the web dashboard mints a single-use,
-  short-lived token for "add an Android device" and renders it as a QR.
-- An **enrollment-token redeem** path: the app exchanges the token plus its
-  Ed25519 public key for a Node (`connection_class = mobile`) and its API key.
-
-This is the only new server work the app requires; it should be specified and
-built on the platform side before app development reaches the enrollment
-screen. Everything else — task dispatch, result ingestion, earnings — reuses
-existing endpoints.
+There is **no redeem path** — an earlier draft of this doc assumed the app
+would exchange the token for a separate API key, but the platform uses the
+device-enrollment JWT *as* the bearer credential (`internal/auth.resolveJWT`
+returns a node-scoped principal; the gateway accepts it at the handshake). So
+the app needs **no new server work**: enrollment is local, and task dispatch,
+result ingestion, and earnings all reuse existing endpoints.
 
 ---
 

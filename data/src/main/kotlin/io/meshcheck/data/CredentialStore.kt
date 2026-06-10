@@ -33,10 +33,11 @@ class CredentialStore(
      * on-device; only its wrapped private seed and its plain public key are
      * kept — the seed in cleartext is never persisted.
      */
-    fun save(nodeId: String, apiKey: String, keyPair: Ed25519KeyPair) {
+    fun save(nodeId: String, apiKey: String, gatewayUrl: String, keyPair: Ed25519KeyPair) {
         prefs.edit()
             .putString(KEY_NODE_ID, nodeId)
             .putString(KEY_API_KEY, encode(envelope.wrap(apiKey.toByteArray(Charsets.UTF_8))))
+            .putString(KEY_GATEWAY_URL, gatewayUrl)
             .putString(KEY_PRIVATE_SEED, encode(envelope.wrap(keyPair.privateSeed)))
             .putString(KEY_PUBLIC_KEY, encode(keyPair.publicKey))
             .apply()
@@ -51,6 +52,9 @@ class CredentialStore(
             nodeId = nodeId,
             apiKey = String(envelope.unwrap(decode(wrappedApiKey)), Charsets.UTF_8),
             ed25519PublicKey = decode(publicKey),
+            // Absent only for installs enrolled before the gateway URL was
+            // carried in the QR; the agent then falls back to its default.
+            gatewayUrl = prefs.getString(KEY_GATEWAY_URL, null),
         )
     }
 
@@ -97,6 +101,7 @@ class CredentialStore(
         const val PREFS_NAME = "meshcheck.credentials"
         const val KEY_NODE_ID = "node_id"
         const val KEY_API_KEY = "api_key"
+        const val KEY_GATEWAY_URL = "gateway_url"
         const val KEY_PRIVATE_SEED = "ed25519_private_seed"
         const val KEY_PUBLIC_KEY = "ed25519_public_key"
     }

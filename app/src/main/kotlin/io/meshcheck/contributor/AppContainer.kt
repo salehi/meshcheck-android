@@ -8,8 +8,6 @@ import io.meshcheck.data.CredentialStore
 import io.meshcheck.data.earnings.EarningsRepository
 import io.meshcheck.data.earnings.FakeEarningsRepository
 import io.meshcheck.data.enrollment.Enroller
-import io.meshcheck.data.enrollment.EnrollmentService
-import io.meshcheck.data.enrollment.FakeEnrollmentService
 import io.meshcheck.protocol.AgentClient
 import io.meshcheck.protocol.AgentConfig
 import io.meshcheck.protocol.TaskGateway
@@ -24,9 +22,9 @@ class AppContainer(context: Context) {
 
     val credentialStore: CredentialStore = CredentialStore(context)
 
-    // Stubbed until the platform enrollment-redeem endpoint exists.
-    val enrollmentService: EnrollmentService = FakeEnrollmentService()
-    val enroller: Enroller = Enroller(enrollmentService, credentialStore)
+    // Enrollment is local: the scanned QR carries the gateway URL and the
+    // device-enrollment JWT, which is the gateway credential itself (no redeem).
+    val enroller: Enroller = Enroller(credentialStore)
 
     val contributionPrefs: ContributionPrefs = ContributionPrefs(context)
 

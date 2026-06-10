@@ -48,6 +48,7 @@ import io.meshcheck.contributor.service.ContributionService
 import io.meshcheck.data.earnings.Earnings
 import io.meshcheck.protocol.AvailableUpdate
 import io.meshcheck.protocol.ConnectionState
+import io.meshcheck.protocol.StopReason
 
 /**
  * The enrolled-device screen. Shows the four things the spec allows — state,
@@ -278,20 +279,52 @@ private fun UnlinkConfirmDialog(onConfirm: () -> Unit, onDismiss: () -> Unit) {
 }
 
 /** The read-only state shown by the indicator, derived from [ConnectionState]. */
-private enum class StateIndicator(
+private data class StateIndicator(
     val label: String,
     val subtitle: String,
     val dotArgb: Long,
-) {
-    CONTRIBUTING("Contributing", "Your phone is taking jobs.", 0xFF2E7D32),
-    CONNECTING("Connecting…", "Reaching the MeshCheck network.", 0xFFF9A825),
-    PAUSED("Paused", "Your phone is not taking jobs.", 0xFF9E9E9E),
-}
+)
+
+private const val DOT_GREEN = 0xFF2E7D32
+private const val DOT_AMBER = 0xFFF9A825
+private const val DOT_GREY = 0xFF9E9E9E
+private const val DOT_RED = 0xFFC62828
 
 private fun ConnectionState.toIndicator(): StateIndicator = when (this) {
-    is ConnectionState.Connected -> StateIndicator.CONTRIBUTING
-    ConnectionState.Connecting, is ConnectionState.Reconnecting -> StateIndicator.CONNECTING
-    ConnectionState.Idle, is ConnectionState.Stopped -> StateIndicator.PAUSED
+    is ConnectionState.Connected ->
+        StateIndicator("Contributing", "Your phone is taking jobs.", DOT_GREEN)
+    ConnectionState.Connecting ->
+        StateIndicator("Connecting…", "Reaching the MeshCheck network.", DOT_AMBER)
+    is ConnectionState.Reconnecting ->
+        StateIndicator(
+            "Reconnecting…",
+            "Lost the connection — retrying (attempt $attempt).",
+            DOT_AMBER,
+        )
+    ConnectionState.Idle ->
+        StateIndicator("Paused", "Your phone is not taking jobs.", DOT_GREY)
+    is ConnectionState.Stopped -> when (reason) {
+        StopReason.REQUESTED ->
+            StateIndicator("Paused", "Your phone is not taking jobs.", DOT_GREY)
+        StopReason.UNAUTHORIZED ->
+            StateIndicator(
+                "Not linked",
+                "This device's key was rejected. Unlink and scan a new QR code.",
+                DOT_RED,
+            )
+        StopReason.OUTDATED ->
+            StateIndicator(
+                "Update required",
+                "This app version can no longer connect. Update to keep contributing.",
+                DOT_RED,
+            )
+        StopReason.SHUTDOWN ->
+            StateIndicator(
+                "Stopped by MeshCheck",
+                "This node was suspended or revoked. Check your dashboard.",
+                DOT_RED,
+            )
+    }
 }
 
 private fun formatEarnings(earnings: Earnings): String =

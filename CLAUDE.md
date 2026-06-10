@@ -90,10 +90,31 @@ reason — treat them as settled:
 
 ## Decisions still open
 
-- The contract of the platform **enrollment-token redeem** endpoint — it does
-  not exist yet and must be designed jointly with the platform team (see
-  below). Until then the app is built against an `EnrollmentService` interface
-  with a fake implementation, so the rest of the enrollment flow can proceed.
+- _(none open — the enrollment model below is now settled.)_
+
+## Enrollment model — resolved (no redeem endpoint)
+
+The "enrollment-token redeem endpoint" once listed here **does not exist and is
+not needed.** The platform model (verified against the monorepo source —
+`internal/auth` and `internal/gateway`) is:
+
+- The dashboard's "Add an Android device" both **creates the Node** and mints a
+  long-lived (~5y) **device-enrollment JWT** bound to that node (`nid`) and org
+  (`org`). It renders a **base64-JSON QR envelope**:
+  `{v, typ:"meshcheck-enroll", api, gateway, token}`.
+- That JWT **is the gateway credential.** The app presents it verbatim as
+  `Authorization: Bearer <jwt>` on the agent WebSocket — exactly like a Node API
+  key (`auth.resolveJWT` returns a node-scoped principal). **There is no API-key
+  exchange and no redeem HTTP call.** Revocation = suspending the Node.
+- Enrollment is therefore **entirely local**: parse the QR, read `nid`, generate
+  the Ed25519 keypair, store `{nodeId, token-as-bearer, gatewayUrl, keypair}`.
+  The public key is registered later in the first `ClientHello`.
+- The **gateway URL comes from the QR**, per deployment. `AgentConfig.gatewayUrl`
+  (`wss://gateway.meshcheck.io/agent`) is only a fallback default.
+
+Note: `doc/agent-protocol.md` (vendored) still says "the API key is the sole
+credential — no JWT". That snapshot predates device-JWT auth; the live platform
+accepts the JWT. Do not edit the vendored file; trust the monorepo source.
 
 ---
 
@@ -103,8 +124,8 @@ The app talks to the MeshCheck platform. These are the touch points:
 
 | Endpoint | Status | Use |
 |---|---|---|
-| `wss://gateway.meshcheck.io/agent` | Exists, stable | The agent WebSocket. Speak the protocol in `doc/agent-protocol.md` exactly. |
-| Enrollment-token redeem | **Does not exist yet** | The app exchanges a QR enrollment token + its Ed25519 public key for a Node and its API key. **Blocking dependency for the enrollment screen** — must be specified with the platform team first. |
+| Agent WebSocket (`gateway` from the QR; default `wss://gateway.meshcheck.io/agent`) | Exists, stable | The agent WebSocket. Auth = `Authorization: Bearer <device-enrollment JWT from the QR>`. Speak the protocol in `doc/agent-protocol.md` exactly. |
+| Enrollment-token redeem | **Does not exist — not needed** | The QR carries a device-enrollment JWT that is itself the gateway bearer credential (see "Enrollment model" above). Enrollment is local; there is no redeem call. |
 | `GET /v1/organizations/{id}/accruals` | Exists; **app-side stubbed** | The lifetime-earnings figure. Behind an `EarningsRepository` interface with a fake impl until enrollment yields the `organization_id` it needs. |
 | `PUT /v1/nodes/{id}/push-token` | Exists | For FCM push-wake — **deferred**, not called in v1. |
 

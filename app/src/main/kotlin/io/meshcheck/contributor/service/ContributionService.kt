@@ -19,6 +19,7 @@ import io.meshcheck.contributor.MainActivity
 import io.meshcheck.contributor.MeshCheckApplication
 import io.meshcheck.contributor.R
 import io.meshcheck.protocol.ConnectionState
+import io.meshcheck.protocol.StopReason
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -59,7 +60,11 @@ class ContributionService : Service() {
                 return START_NOT_STICKY
             }
             observeConnectionState()
-            container.agentClient.start(credentials.apiKey, credentials.ed25519PublicKey)
+            container.agentClient.start(
+                credentials.apiKey,
+                credentials.ed25519PublicKey,
+                credentials.gatewayUrl,
+            )
         }
         // START_STICKY: if the OS kills us under memory pressure, it relaunches.
         return START_STICKY
@@ -85,10 +90,18 @@ class ContributionService : Service() {
         val (title, detail) = when (state) {
             is ConnectionState.Connected ->
                 "Contributing" to "Your phone is taking jobs."
-            ConnectionState.Connecting, is ConnectionState.Reconnecting ->
+            ConnectionState.Connecting ->
                 "Connecting…" to "Reaching the MeshCheck network."
-            ConnectionState.Idle, is ConnectionState.Stopped ->
+            is ConnectionState.Reconnecting ->
+                "Reconnecting…" to "Lost the connection — retrying."
+            ConnectionState.Idle ->
                 "Paused" to "Not contributing right now."
+            is ConnectionState.Stopped -> when (state.reason) {
+                StopReason.REQUESTED -> "Paused" to "Not contributing right now."
+                StopReason.UNAUTHORIZED -> "Not linked" to "Open the app to re-link this device."
+                StopReason.OUTDATED -> "Update required" to "Update the app to keep contributing."
+                StopReason.SHUTDOWN -> "Stopped" to "This node was suspended or revoked."
+            }
         }
         val openApp = PendingIntent.getActivity(
             this,

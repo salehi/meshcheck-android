@@ -1,5 +1,6 @@
 package io.meshcheck.protocol
 
+import io.meshcheck.core.diagnostics.AppLog
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
@@ -82,12 +83,17 @@ class AgentClient(
      * Starts connecting (and reconnecting) with the given credentials. The
      * [apiKey] authenticates the WebSocket upgrade; [ed25519PublicKey] is the
      * Node's Result-signing public key, registered in `ClientHello`.
+     *
+     * [gatewayUrl] is the deployment's gateway from enrollment; when null or
+     * blank the compiled-in [AgentConfig.gatewayUrl] default is used.
      */
-    fun start(apiKey: String, ed25519PublicKey: ByteArray) {
+    fun start(apiKey: String, ed25519PublicKey: ByteArray, gatewayUrl: String? = null) {
         if (managerJob?.isActive == true) return
+        val url = gatewayUrl?.takeIf { it.isNotBlank() } ?: config.gatewayUrl
         _stats.value = SessionStats()
         _updateAvailable.value = null
-        managerJob = scope.launch { connectLoop(apiKey, ed25519PublicKey) }
+        AppLog.i(TAG, "Starting agent; gateway = $url")
+        managerJob = scope.launch { connectLoop(apiKey, ed25519PublicKey, url) }
     }
 
     /** Stops connecting and closes any open connection. Reversible via [start]. */
@@ -95,30 +101,35 @@ class AgentClient(
         managerJob?.cancel()
         managerJob = null
         _state.value = ConnectionState.Stopped(StopReason.REQUESTED)
+        AppLog.i(TAG, "Agent stopped (requested)")
     }
 
     // --- Connect / reconnect loop -------------------------------------------
 
-    private suspend fun connectLoop(apiKey: String, publicKey: ByteArray) {
+    private suspend fun connectLoop(apiKey: String, publicKey: ByteArray, gatewayUrl: String) {
         var attempt = 0
         while (coroutineContext.isActive) {
             _state.value = ConnectionState.Connecting
+            AppLog.i(TAG, "Connecting to $gatewayUrl")
             val outcome = try {
-                runConnection(apiKey, publicKey)
+                runConnection(apiKey, publicKey, gatewayUrl)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
+                AppLog.w(TAG, "Connection attempt threw: ${e.javaClass.simpleName}: ${e.message}")
                 ConnectionOutcome.Retry(hadConnected = false)
             }
             when (outcome) {
                 is ConnectionOutcome.Stop -> {
                     _state.value = ConnectionState.Stopped(outcome.reason)
+                    AppLog.w(TAG, "Stopped, will not retry: ${outcome.reason}")
                     return
                 }
                 is ConnectionOutcome.Retry -> {
                     attempt = if (outcome.hadConnected) 1 else attempt + 1
                     val backoff = backoffMillis(attempt)
                     _state.value = ConnectionState.Reconnecting(attempt, backoff)
+                    AppLog.i(TAG, "Reconnecting (attempt $attempt) in ${backoff}ms")
                     delay(backoff)
                 }
             }
@@ -129,7 +140,11 @@ class AgentClient(
      * Runs one connection from dial to close. Suspends until the connection
      * ends, then returns how the caller should proceed.
      */
-    private suspend fun runConnection(apiKey: String, publicKey: ByteArray): ConnectionOutcome {
+    private suspend fun runConnection(
+        apiKey: String,
+        publicKey: ByteArray,
+        gatewayUrl: String,
+    ): ConnectionOutcome {
         val outcome = CompletableDeferred<ConnectionOutcome>()
         val connectionJob = Job(coroutineContext[Job])
         val connectionScope = CoroutineScope(coroutineContext + connectionJob)
@@ -170,6 +185,7 @@ class AgentClient(
                     )
                     sendEnvelope(webSocket, wrap(clientHello = buildClientHello(publicKey)))
                     _state.value = ConnectionState.Connected(hello.node_id)
+                    AppLog.i(TAG, "Connected; node ${hello.node_id}")
                     val interval = hello.heartbeat_interval_seconds
                         .takeIf { it > 0 } ?: DEFAULT_HEARTBEAT_SECONDS
                     connectionScope.launch { heartbeatLoop(webSocket, interval, inflight) }
@@ -220,9 +236,11 @@ class AgentClient(
             override fun onOpen(webSocket: WebSocket, response: Response) {
                 // The platform must send ServerHello first; if it does not
                 // arrive in time, drop the connection and retry.
+                AppLog.d(TAG, "WebSocket open; awaiting ServerHello")
                 connectionScope.launch {
                     delay(SERVER_HELLO_TIMEOUT_MS)
                     if (!serverHelloSeen.get()) {
+                        AppLog.w(TAG, "No ServerHello within ${SERVER_HELLO_TIMEOUT_MS}ms; retrying")
                         webSocket.cancel()
                         outcome.complete(ConnectionOutcome.Retry(hadConnected = false))
                     }
@@ -240,10 +258,16 @@ class AgentClient(
             }
 
             override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
+                AppLog.i(TAG, "WebSocket closed: code=$code reason=${reason.ifBlank { "—" }}")
                 outcome.complete(ConnectionOutcome.Retry(hadConnected = serverHelloSeen.get()))
             }
 
             override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
+                AppLog.w(
+                    TAG,
+                    "WebSocket failure: code=${response?.code ?: "—"} " +
+                        "${t.javaClass.simpleName}: ${t.message}",
+                )
                 outcome.complete(
                     when (response?.code) {
                         HTTP_UNAUTHORIZED -> ConnectionOutcome.Stop(StopReason.UNAUTHORIZED)
@@ -255,7 +279,7 @@ class AgentClient(
         }
 
         val request = Request.Builder()
-            .url(config.gatewayUrl)
+            .url(gatewayUrl)
             .header("Authorization", "Bearer $apiKey")
             .header("Sec-WebSocket-Protocol", config.subprotocol)
             .header("X-Agent-Version", config.agentVersion)
@@ -384,6 +408,7 @@ class AgentClient(
     }
 
     private companion object {
+        const val TAG = "Agent"
         const val SERVER_HELLO_TIMEOUT_MS = 5_000L
         const val DEFAULT_HEARTBEAT_SECONDS = 30
         const val DEFAULT_MAX_INFLIGHT = 4
