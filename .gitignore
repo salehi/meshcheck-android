@@ -25,5 +25,8 @@ captures/
 *.keystore
 keystore.properties
 
+# Local adb scratch notes — not part of the project
+adb/docs/
+
 # OS
 .DS_Store
