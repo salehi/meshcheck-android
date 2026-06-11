@@ -195,7 +195,7 @@ private fun ContributorContent(
 
         Spacer(Modifier.height(32.dp))
 
-        StatRow("Jobs this session", "$jobsConfirmed")
+        StatRow("Jobs since you started", "$jobsConfirmed")
 
         Spacer(Modifier.height(32.dp))
 
