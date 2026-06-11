@@ -56,12 +56,11 @@ The app has exactly two states a user ever sees: **not yet enrolled**, and
 ### Every launch after that — the connected screen
 
 The app skips straight to the enrolled screen; credentials persist on the
-device. The screen shows four things and nothing else:
+device. The screen shows three things and nothing else:
 
 - **Jobs** — the count of jobs this session the platform confirmed it persisted
   (`ResultAck.persisted`). Results merely sent but never acknowledged are not
   counted — only work that reaches the server and earns.
-- **Earnings** — read from the existing Phase 5 accruals API.
 - **Start / Stop** — the primary control (pause and resume contributing).
 - **Unlink this device** — secondary, destructive, behind a confirmation.
 
@@ -71,13 +70,12 @@ device. The screen shows four things and nothing else:
 │     Your phone is taking jobs      │
 │                                    │
 │     Jobs this session     12       │
-│     Earnings          $0.34        │
 │                                    │
 │   ┌───────────────────────────┐    │
 │   │     Stop contributing     │    │   ← ACTION (verb)
 │   └───────────────────────────┘    │
-│   Pauses new jobs. Earnings and    │   ← CONSEQUENCE
-│   this device stay linked.         │
+│   Pauses new jobs. This device     │   ← CONSEQUENCE
+│   stays linked.                    │
 │                                    │
 │   Unlink this device               │   ← secondary, dim
 └──────────────────────────────────┘
@@ -360,8 +358,8 @@ There is **no redeem path** — an earlier draft of this doc assumed the app
 would exchange the token for a separate API key, but the platform uses the
 device-enrollment JWT *as* the bearer credential (`internal/auth.resolveJWT`
 returns a node-scoped principal; the gateway accepts it at the handshake). So
-the app needs **no new server work**: enrollment is local, and task dispatch,
-result ingestion, and earnings all reuse existing endpoints.
+the app needs **no new server work**: enrollment is local, and task dispatch
+and result ingestion reuse existing endpoints.
 
 ---
 

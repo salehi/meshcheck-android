@@ -45,14 +45,13 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import io.meshcheck.contributor.AppContainer
 import io.meshcheck.contributor.service.ContributionService
-import io.meshcheck.data.earnings.Earnings
 import io.meshcheck.protocol.AvailableUpdate
 import io.meshcheck.protocol.ConnectionState
 import io.meshcheck.protocol.StopReason
 
 /**
- * The enrolled-device screen. Shows the four things the spec allows — state,
- * jobs, earnings, and the Start/Stop control — plus the dim Unlink control.
+ * The enrolled-device screen. Shows the things the spec allows — state,
+ * jobs, and the Start/Stop control — plus the dim Unlink control.
  *
  * The screen keeps **state** and **action** as separate elements, but both
  * derive from the one live [ConnectionState]: the indicator reports what is
@@ -80,12 +79,7 @@ fun ContributorScreen(
     val showStop = pending ?: contributing
 
     var batteryPrompted by rememberSaveable { mutableStateOf(false) }
-    var earnings by remember { mutableStateOf<Earnings?>(null) }
     var showUnlinkConfirm by remember { mutableStateOf(false) }
-
-    LaunchedEffect(Unit) {
-        earnings = runCatching { container.earningsRepository.lifetimeEarnings() }.getOrNull()
-    }
 
     // If the user left contribution on, make sure the service is actually
     // running: the process may have been killed since, leaving the node idle
@@ -138,7 +132,6 @@ fun ContributorScreen(
     ContributorContent(
         indicator = connectionState.toIndicator(),
         jobsConfirmed = stats.confirmed,
-        earnings = earnings,
         contributing = showStop,
         update = update,
         onUpdate = ::openAppStore,
@@ -163,7 +156,6 @@ fun ContributorScreen(
 private fun ContributorContent(
     indicator: StateIndicator,
     jobsConfirmed: Int,
-    earnings: Earnings?,
     contributing: Boolean,
     update: AvailableUpdate?,
     onUpdate: () -> Unit,
@@ -204,8 +196,6 @@ private fun ContributorContent(
         Spacer(Modifier.height(32.dp))
 
         StatRow("Jobs this session", "$jobsConfirmed")
-        Spacer(Modifier.height(12.dp))
-        StatRow("Earnings", earnings?.let(::formatEarnings) ?: "—")
 
         Spacer(Modifier.height(32.dp))
 
@@ -216,7 +206,7 @@ private fun ContributorContent(
         Spacer(Modifier.height(8.dp))
         Text(
             text = if (contributing) {
-                "Pauses new jobs. Your earnings and this device stay linked."
+                "Pauses new jobs. This device stays linked."
             } else {
                 "Your phone starts taking jobs, even while the app is closed."
             },
@@ -354,10 +344,3 @@ private fun ConnectionState.toIndicator(): StateIndicator = when (this) {
             )
     }
 }
-
-private fun formatEarnings(earnings: Earnings): String =
-    if (earnings.currency == "USD") {
-        "$" + "%.2f".format(earnings.amount)
-    } else {
-        "%.2f %s".format(earnings.amount, earnings.currency)
-    }

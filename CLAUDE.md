@@ -30,9 +30,9 @@ the Contributing state, it:
 1. Holds a long-lived WebSocket to the platform gateway (`connection_class = mobile`).
 2. Receives `TaskAssignment` messages, executes the checks, and submits
    Ed25519-signed `ResultSubmit` messages.
-3. Shows the user their jobs and earnings.
+3. Shows the user their jobs.
 
-It is deliberately minimal: jobs count, earnings, a Start/Stop control, and an
+It is deliberately minimal: jobs count, a Start/Stop control, and an
 Unlink control. **Every other interaction — account, payouts, settings — lives
 on the MeshCheck web dashboard, not in the app.**
 
@@ -78,7 +78,7 @@ reason — treat them as settled:
 - **OkHttp** for the WebSocket.
 - **FCM push-wake is deferred** — v1 relies only on the foreground service.
 - **Multi-module Gradle project** — `:core` (Wire-generated proto types +
-  crypto), `:data` (storage, enrollment, accruals client), `:protocol` (agent
+  crypto), `:data` (storage, enrollment), `:protocol` (agent
   WebSocket), `:checks` (executors), `:app` (Compose UI + service). Kotlin DSL,
   version catalog.
 - **v1 check types are `http`, `tcp`, `dns`, and `ping`.** `ping` is a
@@ -98,8 +98,7 @@ reason — treat them as settled:
   these SDK packages — `docker/setup.sh` installs them.
 - **Rolling-session counter** for the in-app jobs figure — it counts only
   results the platform acknowledged as persisted (`ResultAck.persisted`), not
-  results merely sent on the wire; the earnings figure is the lifetime total
-  from the accruals API.
+  results merely sent on the wire.
 - **All builds run in Docker** via `./build.sh` (offline by default) — no JDK,
   Gradle, or Android SDK is installed on the host. See README § "Building".
 - **Stable signing for in-place updates.** `build.sh` generates one signing key
@@ -148,7 +147,6 @@ The app talks to the MeshCheck platform. These are the touch points:
 |---|---|---|
 | Agent WebSocket (`gateway` from the QR; default `wss://gateway.meshcheck.io/agent`) | Exists, stable | The agent WebSocket. Auth = `Authorization: Bearer <device-enrollment JWT from the QR>`. Speak the protocol in `doc/agent-protocol.md` exactly. |
 | Enrollment-token redeem | **Does not exist — not needed** | The QR carries a device-enrollment JWT that is itself the gateway bearer credential (see "Enrollment model" above). Enrollment is local; there is no redeem call. |
-| `GET /v1/organizations/{id}/accruals` | Exists; **app-side stubbed** | The lifetime-earnings figure. Behind an `EarningsRepository` interface with a fake impl until enrollment yields the `organization_id` it needs. |
 | `PUT /v1/nodes/{id}/push-token` | Exists | For FCM push-wake — **deferred**, not called in v1. |
 
 ## The protocol coupling — `proto/agent.proto`

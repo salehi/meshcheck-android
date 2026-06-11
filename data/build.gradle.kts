@@ -1,4 +1,4 @@
-// :data — credential storage, the enrollment service, and the accruals client.
+// :data — credential storage and the enrollment service.
 plugins {
     alias(libs.plugins.android.library)
     alias(libs.plugins.kotlin.android)

@@ -6,8 +6,6 @@ import io.meshcheck.checks.IcmpCapability
 import io.meshcheck.contributor.service.AndroidTaskGateway
 import io.meshcheck.contributor.service.ContributionPrefs
 import io.meshcheck.data.CredentialStore
-import io.meshcheck.data.earnings.EarningsRepository
-import io.meshcheck.data.earnings.FakeEarningsRepository
 import io.meshcheck.data.enrollment.Enroller
 import io.meshcheck.protocol.AgentClient
 import io.meshcheck.protocol.AgentConfig
@@ -28,9 +26,6 @@ class AppContainer(context: Context) {
     val enroller: Enroller = Enroller(credentialStore)
 
     val contributionPrefs: ContributionPrefs = ContributionPrefs(context)
-
-    // Stubbed until the app can call the platform accruals API (see CLAUDE.md).
-    val earningsRepository: EarningsRepository = FakeEarningsRepository()
 
     private val taskGateway: TaskGateway = AndroidTaskGateway(credentialStore)
 
