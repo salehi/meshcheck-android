@@ -4,9 +4,11 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import io.meshcheck.contributor.ui.theme.MeshCheckTheme
 
 /**
  * The app's single Activity. It only hosts Compose and routes between the
@@ -19,7 +21,8 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         val container = (application as MeshCheckApplication).container
         setContent {
-            MaterialTheme {
+            val themeMode by container.themePrefs.mode.collectAsState()
+            MeshCheckTheme(themeMode) {
                 Surface(modifier = Modifier.fillMaxSize()) {
                     MeshCheckApp(container)
                 }

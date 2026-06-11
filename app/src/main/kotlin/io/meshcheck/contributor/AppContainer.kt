@@ -5,6 +5,7 @@ import android.os.Build
 import io.meshcheck.checks.IcmpCapability
 import io.meshcheck.contributor.service.AndroidTaskGateway
 import io.meshcheck.contributor.service.ContributionPrefs
+import io.meshcheck.contributor.settings.ThemePrefs
 import io.meshcheck.data.CredentialStore
 import io.meshcheck.data.enrollment.Enroller
 import io.meshcheck.protocol.AgentClient
@@ -26,6 +27,10 @@ class AppContainer(context: Context) {
     val enroller: Enroller = Enroller(credentialStore)
 
     val contributionPrefs: ContributionPrefs = ContributionPrefs(context)
+
+    // The user's theme choice (System / Light / Dark); read at the Compose root
+    // in MainActivity to theme the whole app.
+    val themePrefs: ThemePrefs = ThemePrefs(context)
 
     private val taskGateway: TaskGateway = AndroidTaskGateway(credentialStore)
 

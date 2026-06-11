@@ -2,6 +2,7 @@ package io.meshcheck.contributor
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material3.MaterialTheme
@@ -18,6 +19,8 @@ import androidx.compose.ui.unit.dp
 import io.meshcheck.contributor.contribution.ContributorScreen
 import io.meshcheck.contributor.diagnostics.LogScreen
 import io.meshcheck.contributor.enrollment.EnrollmentScreen
+import io.meshcheck.contributor.settings.SettingsButton
+import io.meshcheck.contributor.settings.SettingsSheet
 
 /**
  * Top-level routing: an unenrolled device sees the enrollment flow; an
@@ -33,6 +36,7 @@ fun MeshCheckApp(container: AppContainer) {
         mutableStateOf(container.credentialStore.isEnrolled())
     }
     var showLogs by rememberSaveable { mutableStateOf(false) }
+    var showSettings by rememberSaveable { mutableStateOf(false) }
 
     Box(modifier = Modifier.fillMaxSize()) {
         if (showLogs) {
@@ -50,6 +54,16 @@ fun MeshCheckApp(container: AppContainer) {
                 )
             }
 
+            // Settings gear — bottom-center, a little above the nav bar. Shown
+            // on both the enrollment and contributor screens, like the Logs chip.
+            SettingsButton(
+                onClick = { showSettings = true },
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .navigationBarsPadding()
+                    .padding(bottom = 12.dp),
+            )
+
             if (BuildConfig.DEBUG) {
                 LogsButton(
                     onClick = { showLogs = true },
@@ -60,6 +74,13 @@ fun MeshCheckApp(container: AppContainer) {
                 )
             }
         }
+    }
+
+    if (showSettings) {
+        SettingsSheet(
+            themePrefs = container.themePrefs,
+            onDismiss = { showSettings = false },
+        )
     }
 }
 

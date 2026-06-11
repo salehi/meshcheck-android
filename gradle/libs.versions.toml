@@ -25,6 +25,9 @@ compose-ui-graphics = { module = "androidx.compose.ui:ui-graphics" }
 compose-ui-tooling = { module = "androidx.compose.ui:ui-tooling" }
 compose-ui-tooling-preview = { module = "androidx.compose.ui:ui-tooling-preview" }
 compose-material3 = { module = "androidx.compose.material3:material3" }
+# Curated common Material icon set (e.g. Icons.Filled.Settings); version from the
+# Compose BOM. NOT the large material-icons-extended artifact.
+compose-material-icons-core = { module = "androidx.compose.material:material-icons-core" }
 
 # Software Ed25519 via the BouncyCastle low-level API (no JCE provider
 # registration, so no clash with Android's repackaged internal BC).
