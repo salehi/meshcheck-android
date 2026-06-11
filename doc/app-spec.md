@@ -102,9 +102,12 @@ UI rules that keep state and action unambiguous:
   current state: "Contributing", "Connecting…" (the Transitioning state), or
   "Paused".
 - The **action button** is labeled with the verb for the *other* state:
-  Contributing → "Stop contributing"; Paused → "Start contributing". It
-  reflects the user's intent rather than the live connection, so a brief
-  reconnect never disables the control or locks the user out.
+  Contributing → "Stop contributing"; Paused → "Start contributing". It is
+  derived from the **same live connection state as the indicator** —
+  connecting and reconnecting both count as "on" — so the two can never
+  contradict (a stale "Stop" can't sit over a "Paused" indicator), yet a brief
+  reconnect never flips the button or locks the user out. A tap shows its
+  result instantly, then yields to the real state once it catches up.
 - A **consequence line** under the button says what pressing it will do.
 - The foreground-service **notification mirrors the state** ("Contributing" /
   "Connecting…" / "Paused") — it is the contributor's status when the app is
@@ -167,6 +170,7 @@ service when that flag is `true`.
 |---|---|---|
 | User swipes app from recents | Yes | Foreground service runs independently of the UI. |
 | OS kills service under memory pressure | Recovers | `START_STICKY` — the system relaunches the service. |
+| User reopens the app after the process was killed | Yes | The contributor screen restarts the service when `userWantsConnected` is true, so the live state converges to the saved intent instead of showing a stale "Paused". |
 | Device reboots | Yes, if `userWantsConnected` | `BOOT_COMPLETED` receiver restarts the service. |
 | `WorkManager` periodic watchdog | Yes | Re-launches the service if it finds it down and `userWantsConnected` is true. |
 | User presses **Stop** | No (intended) | `userWantsConnected` set false; service stays down until Start. |

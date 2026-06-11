@@ -54,10 +54,11 @@ import io.meshcheck.protocol.StopReason
  * The enrolled-device screen. Shows the four things the spec allows — state,
  * jobs, earnings, and the Start/Stop control — plus the dim Unlink control.
  *
- * The screen keeps **state** and **action** as separate elements: the
- * indicator reports what is true now (from the connection), while the button
- * is labelled with what pressing it does (from the user's intent), so the two
- * can never contradict each other.
+ * The screen keeps **state** and **action** as separate elements, but both
+ * derive from the one live [ConnectionState]: the indicator reports what is
+ * true now, and the button is labelled with what pressing it does. Because
+ * they share a source, the two can never contradict each other — a stale
+ * "Stop" can't sit over a "Paused" indicator.
  */
 @Composable
 fun ContributorScreen(
@@ -69,15 +70,31 @@ fun ContributorScreen(
     val stats by container.agentClient.stats.collectAsState()
     val update by container.agentClient.updateAvailable.collectAsState()
 
-    var wantsConnected by rememberSaveable {
-        mutableStateOf(container.contributionPrefs.userWantsConnected)
-    }
+    // The button's verb is derived from the live connection state — the same
+    // source the indicator uses — so the action and the state can't disagree.
+    // [pending] holds the just-tapped intent so the button responds instantly,
+    // then yields to the real state the moment it moves.
+    val contributing = connectionState.isContributing()
+    var pending by remember { mutableStateOf<Boolean?>(null) }
+    LaunchedEffect(connectionState) { pending = null }
+    val showStop = pending ?: contributing
+
     var batteryPrompted by rememberSaveable { mutableStateOf(false) }
     var earnings by remember { mutableStateOf<Earnings?>(null) }
     var showUnlinkConfirm by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         earnings = runCatching { container.earningsRepository.lifetimeEarnings() }.getOrNull()
+    }
+
+    // If the user left contribution on, make sure the service is actually
+    // running: the process may have been killed since, leaving the node idle
+    // despite the saved intent. Restarting it here converges the live state to
+    // that intent, so opening the app shows the truth instead of a stale state.
+    LaunchedEffect(Unit) {
+        if (container.contributionPrefs.userWantsConnected) {
+            ContributionService.start(context)
+        }
     }
 
     val notificationPermission = rememberLauncherForActivityResult(
@@ -92,7 +109,7 @@ fun ContributorScreen(
             if (!granted) notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
         }
         ContributionService.start(context)
-        wantsConnected = true
+        pending = true
         if (!batteryPrompted && !BatteryOptimization.isExempt(context)) {
             BatteryOptimization.requestExemption(context)
             batteryPrompted = true
@@ -101,7 +118,7 @@ fun ContributorScreen(
 
     fun stopContributing() {
         ContributionService.stop(context)
-        wantsConnected = false
+        pending = false
     }
 
     // The app can't self-update; send the user to the store listing. Falls back
@@ -122,10 +139,10 @@ fun ContributorScreen(
         indicator = connectionState.toIndicator(),
         jobsConfirmed = stats.confirmed,
         earnings = earnings,
-        wantsConnected = wantsConnected,
+        contributing = showStop,
         update = update,
         onUpdate = ::openAppStore,
-        onToggle = { if (wantsConnected) stopContributing() else startContributing() },
+        onToggle = { if (showStop) stopContributing() else startContributing() },
         onUnlink = { showUnlinkConfirm = true },
     )
 
@@ -147,7 +164,7 @@ private fun ContributorContent(
     indicator: StateIndicator,
     jobsConfirmed: Int,
     earnings: Earnings?,
-    wantsConnected: Boolean,
+    contributing: Boolean,
     update: AvailableUpdate?,
     onUpdate: () -> Unit,
     onToggle: () -> Unit,
@@ -194,11 +211,11 @@ private fun ContributorContent(
 
         // Action — labelled with the verb for the *other* state.
         Button(onClick = onToggle, modifier = Modifier.fillMaxWidth()) {
-            Text(if (wantsConnected) "Stop contributing" else "Start contributing")
+            Text(if (contributing) "Stop contributing" else "Start contributing")
         }
         Spacer(Modifier.height(8.dp))
         Text(
-            text = if (wantsConnected) {
+            text = if (contributing) {
                 "Pauses new jobs. Your earnings and this device stay linked."
             } else {
                 "Your phone starts taking jobs, even while the app is closed."
@@ -287,6 +304,19 @@ private const val DOT_GREEN = 0xFF2E7D32
 private const val DOT_AMBER = 0xFFF9A825
 private const val DOT_GREY = 0xFF9E9E9E
 private const val DOT_RED = 0xFFC62828
+
+/**
+ * Whether contribution is on — connecting, connected, or retrying. The button
+ * verb derives from this, the same [ConnectionState] the indicator reads, so
+ * the action and the state stay in lock-step.
+ */
+private fun ConnectionState.isContributing(): Boolean = when (this) {
+    ConnectionState.Connecting,
+    is ConnectionState.Connected,
+    is ConnectionState.Reconnecting -> true
+    ConnectionState.Idle,
+    is ConnectionState.Stopped -> false
+}
 
 private fun ConnectionState.toIndicator(): StateIndicator = when (this) {
     is ConnectionState.Connected ->
