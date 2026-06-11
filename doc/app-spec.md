@@ -304,13 +304,17 @@ are out of scope per the parent phase doc.
 | WebSocket | OkHttp WebSocket (works to API 21) |
 | DNS lookups | dnsjava — resolves MX/TXT/NS/CNAME, beyond Android's A/AAAA-only APIs |
 | Protobuf | Generated Kotlin from `proto/agent.proto` |
-| QR scanning | ZXing core decoder (`com.google.zxing:core`) — pure library, no Play Services |
+| QR scanning | ML Kit barcode scanning, **bundled** model (`com.google.mlkit:barcode-scanning`) — model ships in the APK, no Play Services |
 | Camera | CameraX (preview + frame analysis) |
 | Background work | Foreground service (`specialUse`) + `WorkManager` watchdog + `BOOT_COMPLETED` receiver |
 | Credential storage | Software Ed25519 key + API key, each wrapped by a non-exportable Android Keystore key, stored in `SharedPreferences` |
 
-ZXing over ML Kit deliberately: ML Kit barcode scanning depends on Google Play
-Services, which the oldest target devices lack.
+ML Kit's **bundled** barcode model (`com.google.mlkit:barcode-scanning`) ships
+the model inside the APK and needs **no Google Play Services** — only the *thin*
+`play-services-mlkit-barcode-scanning` variant downloads the model via Play
+Services. So the no-Play-Services constraint still holds, and the bundled model
+decodes the dense enrollment QR (it carries a full JWT) faster and at more angles
+than ZXing did. The camera runs `ImageAnalysis` at 1280×720 with tap-to-focus.
 
 ---
 

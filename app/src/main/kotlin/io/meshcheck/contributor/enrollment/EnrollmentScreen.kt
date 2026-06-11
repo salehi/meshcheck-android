@@ -25,6 +25,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -41,17 +42,21 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathFillType
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import io.meshcheck.data.enrollment.Enroller
 import io.meshcheck.data.enrollment.EnrollmentError
 import io.meshcheck.data.enrollment.EnrollmentResult
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /** What the enrollment screen is currently showing. */
 private sealed interface EnrollmentUiState {
@@ -78,13 +83,18 @@ fun EnrollmentScreen(
     fun redeem(token: String) {
         uiState = EnrollmentUiState.Enrolling
         scope.launch {
-            val result = try {
-                enroller.enroll(token)
-            } catch (e: Exception) {
-                EnrollmentResult.Failure(
-                    EnrollmentError.SERVER,
-                    e.message ?: "Enrollment could not be completed.",
-                )
+            // Enrollment generates the keypair and writes the Keystore-wrapped
+            // credential; keep it off the main thread so the UI never stalls.
+            // The state updates below stay on the main dispatcher.
+            val result = withContext(Dispatchers.Default) {
+                try {
+                    enroller.enroll(token)
+                } catch (e: Exception) {
+                    EnrollmentResult.Failure(
+                        EnrollmentError.SERVER,
+                        e.message ?: "Enrollment could not be completed.",
+                    )
+                }
             }
             when (result) {
                 is EnrollmentResult.Success -> onEnrolled()
@@ -122,6 +132,7 @@ fun EnrollmentScreen(
         EnrollmentUiState.Scanning -> ScanningContent(
             onToken = ::redeem,
             onCancel = { uiState = EnrollmentUiState.Explainer },
+            onPrewarm = { scope.launch(Dispatchers.Default) { enroller.prewarm() } },
         )
         EnrollmentUiState.Enrolling -> EnrollingContent()
         is EnrollmentUiState.Error -> ErrorContent(
@@ -177,7 +188,12 @@ private fun ExplainerContent(onScan: () -> Unit) {
 private fun ScanningContent(
     onToken: (String) -> Unit,
     onCancel: () -> Unit,
+    onPrewarm: () -> Unit,
 ) {
+    val haptics = LocalHapticFeedback.current
+    // Generate the signing keypair and Keystore key while the camera is live,
+    // so the post-scan enroll is just parse + persist (no perceptible stall).
+    LaunchedEffect(Unit) { onPrewarm() }
     // Guard against the analyzer firing twice before the screen recomposes.
     var consumed by remember { mutableStateOf(false) }
     // Window-space bounds of the viewfinder square and of the scrim canvas,
@@ -190,6 +206,8 @@ private fun ScanningContent(
             onQrScanned = { token ->
                 if (!consumed) {
                     consumed = true
+                    // A tick the instant a code is detected, before enrolling.
+                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                     onToken(token)
                 }
             },

@@ -73,8 +73,14 @@ reason — treat them as settled:
   wipes credentials).
 - **Distribution: Google Play *and* direct APK** (same build).
 - **Bundled Conscrypt** for TLS 1.3 on pre-API-29 devices.
-- **ZXing core** decoder + **CameraX** for QR scanning (no Google Play
-  Services dependency).
+- **ML Kit bundled barcode scanning** (`com.google.mlkit:barcode-scanning`) +
+  **CameraX** for QR scanning. The bundled model ships in the APK, so there is
+  still **no Google Play Services dependency** (only the thin
+  `play-services-mlkit-barcode-scanning` variant needs Play Services). This
+  reverses the earlier "ZXing, not ML Kit" choice, whose premise — "ML Kit needs
+  Play Services" — was only ever true of the thin variant. ML Kit decodes the
+  dense enrollment QR faster/at more angles; the camera runs `ImageAnalysis` at
+  1280×720 with tap-to-focus.
 - **OkHttp** for the WebSocket.
 - **FCM push-wake is deferred** — v1 relies only on the foreground service.
 - **Multi-module Gradle project** — `:core` (Wire-generated proto types +

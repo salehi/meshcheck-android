@@ -29,6 +29,12 @@ class CredentialStore(
     fun isEnrolled(): Boolean = prefs.contains(KEY_API_KEY)
 
     /**
+     * Creates the Keystore wrapping key ahead of time, so the first [save]
+     * doesn't pay for its (one-time, 100–500ms) generation. Idempotent.
+     */
+    fun prewarm() = envelope.ensureKey()
+
+    /**
      * Stores the credentials produced by enrollment. [keyPair] is generated
      * on-device; only its wrapped private seed and its plain public key are
      * kept — the seed in cleartext is never persisted.

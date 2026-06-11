@@ -85,7 +85,7 @@ dependencies {
     implementation(libs.camera.camera2)
     implementation(libs.camera.lifecycle)
     implementation(libs.camera.view)
-    implementation(libs.zxing.core)
+    implementation(libs.mlkit.barcode.scanning)
 
     implementation(platform(libs.compose.bom))
     implementation(libs.compose.ui)

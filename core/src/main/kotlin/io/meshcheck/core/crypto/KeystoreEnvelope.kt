@@ -47,6 +47,16 @@ class KeystoreEnvelope(context: Context) {
             rsaWrap(plaintext)
         }
 
+    /**
+     * Forces the Keystore envelope key to exist, generating it if absent.
+     * Idempotent — a no-op once the key is present. Called ahead of the first
+     * [wrap] so the one-time key generation (which can take 100–500ms) happens
+     * off the enrollment critical path rather than during it.
+     */
+    fun ensureKey() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) aesKey() else rsaKeyPair()
+    }
+
     /** Reverses [wrap]; dispatches on the tier byte the ciphertext carries. */
     fun unwrap(ciphertext: ByteArray): ByteArray {
         require(ciphertext.isNotEmpty()) { "empty ciphertext" }
