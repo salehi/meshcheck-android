@@ -53,7 +53,8 @@ class ResultSignerTest {
         )
         assertEquals(Ed25519.SIGNATURE_SIZE, signature.size)
 
-        val signed = ResultSigner.canonicalBytes(
+        // The signature is over SHA-256(canonical), matching the platform.
+        val digest = ResultSigner.canonicalHash(
             taskId = "task-1",
             checkId = "check-1",
             outcome = ResultOutcome.RESULT_OUTCOME_PASS,
@@ -61,7 +62,19 @@ class ResultSignerTest {
             startedAt = 1_700_000_000_000L,
             completedAt = 1_700_000_000_321L,
         )
-        assertTrue(Ed25519.verify(keyPair.publicKey, signed, signature))
+        assertTrue(Ed25519.verify(keyPair.publicKey, digest, signature))
+
+        // Regression guard: it must be hash-then-sign — the signature must NOT
+        // verify over the raw canonical preimage, or the platform rejects it.
+        val rawCanonical = ResultSigner.canonicalBytes(
+            taskId = "task-1",
+            checkId = "check-1",
+            outcome = ResultOutcome.RESULT_OUTCOME_PASS,
+            measurements = """{"latency_ms":12.7}""".toByteArray(Charsets.UTF_8),
+            startedAt = 1_700_000_000_000L,
+            completedAt = 1_700_000_000_321L,
+        )
+        assertFalse(Ed25519.verify(keyPair.publicKey, rawCanonical, signature))
     }
 
     @Test
@@ -78,7 +91,7 @@ class ResultSignerTest {
             completedAt = 2L,
         )
 
-        val tampered = ResultSigner.canonicalBytes(
+        val tampered = ResultSigner.canonicalHash(
             taskId = "t",
             checkId = "c",
             outcome = ResultOutcome.RESULT_OUTCOME_PASS,
