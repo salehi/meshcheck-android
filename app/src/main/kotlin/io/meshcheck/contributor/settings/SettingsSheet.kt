@@ -34,6 +34,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
+import io.meshcheck.contributor.BuildConfig
 import io.meshcheck.contributor.ui.theme.ThemeMode
 
 /**
@@ -49,7 +50,7 @@ fun SettingsButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
 }
 
 /** Top-level settings sections, each opening its own inner menu. */
-private enum class SettingsSection { THEME }
+private enum class SettingsSection { THEME, ABOUT }
 
 /**
  * The settings menu, shown as a bottom sheet. The root is a list of sections;
@@ -87,6 +88,8 @@ fun SettingsSheet(themePrefs: ThemePrefs, onDismiss: () -> Unit) {
                     onSelect = { themePrefs.setMode(it) },
                     onBack = { section = null },
                 )
+
+                SettingsSection.ABOUT -> AboutMenu(onBack = { section = null })
             }
         }
     }
@@ -101,6 +104,12 @@ private fun SettingsRoot(currentTheme: String, onOpenSection: (SettingsSection) 
         label = "Theme",
         value = currentTheme,
         onClick = { onOpenSection(SettingsSection.THEME) },
+    )
+
+    SectionRow(
+        label = "About",
+        value = BuildConfig.VERSION_NAME,
+        onClick = { onOpenSection(SettingsSection.ABOUT) },
     )
 }
 
@@ -133,6 +142,28 @@ private fun SectionRow(label: String, value: String, onClick: () -> Unit) {
     }
 }
 
+/** A read-only label/value row — a non-clickable, chevron-less [SectionRow]. */
+@Composable
+private fun InfoRow(label: String, value: String) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodyLarge,
+            modifier = Modifier.weight(1f),
+        )
+        Text(
+            text = value,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
 @Composable
 private fun ThemeMenu(selected: ThemeMode, onSelect: (ThemeMode) -> Unit, onBack: () -> Unit) {
     SubMenuHeader(title = "Theme", onBack = onBack)
@@ -145,6 +176,22 @@ private fun ThemeMenu(selected: ThemeMode, onSelect: (ThemeMode) -> Unit, onBack
             onSelect = { onSelect(option) },
         )
     }
+}
+
+@Composable
+private fun AboutMenu(onBack: () -> Unit) {
+    SubMenuHeader(title = "About", onBack = onBack)
+    Spacer(Modifier.height(8.dp))
+    InfoRow(
+        label = "Version",
+        value = "${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})",
+    )
+    Spacer(Modifier.height(8.dp))
+    Text(
+        text = "MeshCheck",
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
 }
 
 /** A back arrow plus the inner menu's title. */
