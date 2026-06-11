@@ -107,12 +107,25 @@ jobs:
           printf '%s' "$ANDROID_KEYSTORE_B64" | base64 -d > .docker-cache/signing/meshcheck-dev.jks
           echo "Restored signing keystore ($(wc -c < .docker-cache/signing/meshcheck-dev.jks) bytes)"
 
+      # The keystore password is injected from a repository secret (never
+      # hardcoded). app/build.gradle.kts reads MESHCHECK_KEYSTORE_PASSWORD from
+      # the environment. A missing secret would silently fall back to AGP's
+      # ephemeral debug key and break in-place updates, so fail loudly first.
       - name: Assemble ${{ steps.meta.outputs.variant }} APK
-        run: >
-          gradle assemble${{ steps.meta.outputs.variant_cap }}
-          -PversionName=${{ steps.meta.outputs.version }}
-          -PversionCode=${{ steps.meta.outputs.version_code }}
-          --console=plain --stacktrace
+        env:
+          MESHCHECK_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          MESHCHECK_KEY_ALIAS: meshcheck
+        run: |
+          set -euo pipefail
+          if [ -z "${MESHCHECK_KEYSTORE_PASSWORD:-}" ]; then
+            echo "::error::ANDROID_KEYSTORE_PASSWORD secret is not set. Set it once with:"
+            echo "::error::  gh secret set ANDROID_KEYSTORE_PASSWORD < <(printf %s \"\$MESHCHECK_KEYSTORE_PASSWORD\")"
+            exit 1
+          fi
+          gradle assemble${{ steps.meta.outputs.variant_cap }} \
+            -PversionName=${{ steps.meta.outputs.version }} \
+            -PversionCode=${{ steps.meta.outputs.version_code }} \
+            --console=plain --stacktrace
 
       # app/build.gradle.kts moves each variant's APK into dist/. Rename the
       # asset to carry the version so the download name is self-describing.

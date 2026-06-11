@@ -61,6 +61,20 @@ so APKs built on a *different* machine do not share this signer. To make a secon
 machine — or CI — sign identically, reuse the same keystore (CI does this from a
 secret; see Releases).
 
+**The keystore password is never hardcoded.** It lives in a gitignored `.env`
+at the repo root, which `build.sh` sources and forwards into the build container
+(`MESHCHECK_KEYSTORE_PASSWORD` / `MESHCHECK_KEY_ALIAS`); `app/build.gradle.kts`
+reads it from the environment. On a fresh machine `build.sh` generates a random
+password into `.env` the first time it runs — the same one-time bootstrap as the
+keystore itself — so there is nothing to configure by hand:
+
+    MESHCHECK_KEYSTORE_PASSWORD=<random>   # generated on first build; never committed
+    MESHCHECK_KEY_ALIAS=meshcheck
+
+If you copy a keystore from another machine, copy its `.env` (or set
+`MESHCHECK_KEYSTORE_PASSWORD` to that keystore's password) so the password
+matches — otherwise the build fails to open the keystore.
+
 ## Releases
 
 Releases are cut by **pushing a git tag** — GitHub Actions
@@ -88,17 +102,34 @@ APK in place (each version would need an uninstall, wiping enrollment). To
 prevent that, the workflow restores a **stable signing key from the
 `ANDROID_KEYSTORE_B64` repository secret** (base64 of the keystore) into
 `.docker-cache/signing/meshcheck-dev.jks` before building, the same path
-`app/build.gradle.kts` reads. It is the **same key `build.sh` uses locally**, so
-local and CI APKs share a signer and update each other in place. A missing
-secret fails the release loudly rather than shipping a non-updatable APK.
+`app/build.gradle.kts` reads, and supplies the keystore password from the
+`ANDROID_KEYSTORE_PASSWORD` secret as `MESHCHECK_KEYSTORE_PASSWORD`. It is the
+**same key (and password) `build.sh` uses locally**, so local and CI APKs share
+a signer and update each other in place. Either secret missing fails the release
+loudly rather than shipping a non-updatable APK.
 
-Set or rotate the secret from the keystore (the value never prints):
+CI needs **two** repository secrets, kept in lockstep with your local `.env`:
 
+    # the keystore binary (base64) — re-run this whenever the keystore changes
     base64 -w0 .docker-cache/signing/meshcheck-dev.jks | gh secret set ANDROID_KEYSTORE_B64
 
-Rotating to a *different* key re-signs future releases, so installs built with
-the old key must be reinstalled once. The release itself is published with the
-built-in `GITHUB_TOKEN`. If the app later ships to Google Play, add a real Play
+    # the keystore password — sourced from .env so it never appears on the command line
+    set -a; . ./.env; set +a
+    printf '%s' "$MESHCHECK_KEYSTORE_PASSWORD" | gh secret set ANDROID_KEYSTORE_PASSWORD
+
+To **rotate the password** on the existing key without changing the signing
+identity (installs stay updatable), change it on the keystore and re-push both
+secrets:
+
+    set -a; . ./.env; set +a
+    keytool -storepasswd -keystore .docker-cache/signing/meshcheck-dev.jks \
+        -storepass "$OLD_PASS" -new "$MESHCHECK_KEYSTORE_PASSWORD"   # then update .env to match
+    base64 -w0 .docker-cache/signing/meshcheck-dev.jks | gh secret set ANDROID_KEYSTORE_B64
+    printf '%s' "$MESHCHECK_KEYSTORE_PASSWORD" | gh secret set ANDROID_KEYSTORE_PASSWORD
+
+Rotating to a *different* key (not just a new password) re-signs future
+releases, so installs built with the old key must be reinstalled once. The
+release itself is published with the built-in `GITHUB_TOKEN`. If the app later ships to Google Play, add a real Play
 upload key and the Play service account JSON as a secret
 (`gh secret set PLAY_SERVICE_ACCOUNT_JSON < key.json`) plus a publish step —
 until then no Google credentials are involved.

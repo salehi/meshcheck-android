@@ -37,17 +37,31 @@ android {
     // Both build types use it, so debug and release APKs share a signer and are
     // mutually updatable. This is a local/sideload key, NOT a Play upload key —
     // CI release distribution needs a persistent key injected via a secret.
+    //
+    // The password and alias are NEVER hardcoded: build.sh sources them from the
+    // gitignored .env and forwards them as MESHCHECK_KEYSTORE_PASSWORD /
+    // MESHCHECK_KEY_ALIAS into the build container; CI injects them from repo
+    // secrets (see .github/workflows/release.yml). A -P Gradle property is the
+    // fallback for raw `gradle` invocations. If no password is available the
+    // config is left unsigned so AGP falls back to its auto-generated debug key.
     val devKeystore = rootProject.file(".docker-cache/signing/meshcheck-dev.jks")
+    val signingPassword = System.getenv("MESHCHECK_KEYSTORE_PASSWORD")
+        ?: (project.findProperty("meshcheckKeystorePassword") as String?)
+    val signingAlias = System.getenv("MESHCHECK_KEY_ALIAS")
+        ?: (project.findProperty("meshcheckKeyAlias") as String?)
+        ?: "meshcheck"
     signingConfigs {
         getByName("debug") {
-            if (devKeystore.exists()) {
+            if (devKeystore.exists() && !signingPassword.isNullOrBlank()) {
                 storeFile = devKeystore
-                storePassword = "meshcheck"
-                keyAlias = "meshcheck"
-                keyPassword = "meshcheck"
+                storePassword = signingPassword
+                keyAlias = signingAlias
+                // PKCS12 ties the key password to the store password.
+                keyPassword = signingPassword
             }
-            // Fallback (no build.sh): AGP's auto-generated debug key, which is
-            // ephemeral inside the Docker build — the instability this replaces.
+            // Fallback (no keystore, or no password supplied): AGP's
+            // auto-generated debug key, which is ephemeral inside the Docker
+            // build — the instability the stable key replaces.
         }
     }
 

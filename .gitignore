@@ -24,6 +24,8 @@ captures/
 *.jks
 *.keystore
 keystore.properties
+# Local signing passwords / secrets consumed by build.sh (see README § Signing)
+.env
 
 # Local adb scratch notes — not part of the project
 adb/docs/

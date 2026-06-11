@@ -114,6 +114,15 @@ reason — treat them as settled:
   from the `ANDROID_KEYSTORE_B64` repo secret, so local and CI APKs share a
   signer. Local sideload key only — not a Play upload key. See README §
   "Building → Signing & in-place updates" and § "Releases → Signing".
+- **Signing secrets are never hardcoded.** The keystore password and alias live
+  in a gitignored `.env` at the repo root (`MESHCHECK_KEYSTORE_PASSWORD` /
+  `MESHCHECK_KEY_ALIAS`); `build.sh` sources it and forwards both into the build
+  container, and `app/build.gradle.kts` reads them from the environment (a
+  `-PmeshcheckKeystorePassword` Gradle property is the fallback for raw `gradle`
+  invocations). On a fresh machine `build.sh` generates a random password into
+  `.env` on first run. CI injects the password from the `ANDROID_KEYSTORE_PASSWORD`
+  repo secret. There is no `"meshcheck"` literal password anywhere in tracked
+  code — do not reintroduce one.
 
 ## Decisions still open
 

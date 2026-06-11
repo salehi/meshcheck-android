@@ -27,6 +27,39 @@ cd "$(dirname "$0")"
 IMAGE=meshcheck-android-build:latest
 CACHE="$PWD/.docker-cache"
 
+# Signing credentials live in a gitignored .env (NEVER committed — see
+# .gitignore). build.sh sources them and forwards them into the build container;
+# app/build.gradle.kts reads MESHCHECK_KEYSTORE_PASSWORD / MESHCHECK_KEY_ALIAS to
+# sign the APK. Nothing is hardcoded. On a fresh machine the password is
+# generated once and persisted to .env — mirroring how the keystore itself is
+# generated once (below). To share with CI: set the GitHub secrets
+# ANDROID_KEYSTORE_PASSWORD (this password) and ANDROID_KEYSTORE_B64 (the
+# keystore); see README § "Signing & in-place updates".
+ENV_FILE="$PWD/.env"
+if [ -f "$ENV_FILE" ]; then
+    set -a; . "$ENV_FILE"; set +a
+fi
+if [ -z "${MESHCHECK_KEYSTORE_PASSWORD:-}" ]; then
+    echo ">> build.sh: no signing password found — generating one into .env (one-time)"
+    GEN_PASS="$(openssl rand -hex 24 2>/dev/null || head -c 24 /dev/urandom | od -An -tx1 | tr -d ' \n')"
+    if [ -z "$GEN_PASS" ]; then
+        echo ">> build.sh: ERROR — could not generate a random signing password" >&2
+        exit 1
+    fi
+    umask 077
+    {
+        echo "# MeshCheck local signing credentials — DO NOT COMMIT (gitignored)."
+        echo "# Consumed by build.sh and app/build.gradle.kts; mirror into CI as the"
+        echo "# GitHub secrets ANDROID_KEYSTORE_PASSWORD + ANDROID_KEYSTORE_B64."
+        echo "MESHCHECK_KEYSTORE_PASSWORD=$GEN_PASS"
+        echo "MESHCHECK_KEY_ALIAS=${MESHCHECK_KEY_ALIAS:-meshcheck}"
+    } > "$ENV_FILE"
+    chmod 600 "$ENV_FILE"
+    set -a; . "$ENV_FILE"; set +a
+fi
+: "${MESHCHECK_KEY_ALIAS:=meshcheck}"
+export MESHCHECK_KEYSTORE_PASSWORD MESHCHECK_KEY_ALIAS
+
 # Offline unless --online is passed as the first argument.
 NET_FLAG="--offline"
 if [ "${1:-}" = "--online" ]; then
@@ -65,19 +98,21 @@ if [ ! -f "$KEYSTORE_HOST" ]; then
     docker run --rm \
         --user "$(id -u):$(id -g)" \
         -e HOME=/tmp \
+        -e MESHCHECK_KEYSTORE_PASSWORD -e MESHCHECK_KEY_ALIAS \
         -v "$PWD":/workspace -w /workspace \
         "$IMAGE" \
-        keytool -genkeypair -v \
+        sh -c 'keytool -genkeypair -v \
             -keystore /workspace/.docker-cache/signing/meshcheck-dev.jks \
-            -storetype PKCS12 -alias meshcheck \
+            -storetype PKCS12 -alias "$MESHCHECK_KEY_ALIAS" \
             -keyalg RSA -keysize 2048 -validity 10000 \
-            -storepass meshcheck -keypass meshcheck \
-            -dname "CN=MeshCheck Dev (local sideload key), OU=Android, O=MeshCheck"
+            -storepass "$MESHCHECK_KEYSTORE_PASSWORD" -keypass "$MESHCHECK_KEYSTORE_PASSWORD" \
+            -dname "CN=MeshCheck Dev (local sideload key), OU=Android, O=MeshCheck"'
 fi
 
 exec docker run --rm \
     --user "$(id -u):$(id -g)" \
     -e HOME=/tmp \
+    -e MESHCHECK_KEYSTORE_PASSWORD -e MESHCHECK_KEY_ALIAS \
     -v "$PWD":/workspace -w /workspace \
     -v "$CACHE/gradle":/.gradle \
     -v "$CACHE/android-sdk":/sdk \
