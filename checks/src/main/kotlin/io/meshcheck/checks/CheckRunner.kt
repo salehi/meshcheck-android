@@ -3,9 +3,10 @@ package io.meshcheck.checks
 /**
  * Runs a check by dispatching to the executor for its type.
  *
- * The app advertises only `http`, `tcp`, and `dns` in `ClientHello`, so the
- * dispatcher should never send another type — any other value yielding
- * INCONCLUSIVE is a defensive guard, not an expected path.
+ * The app advertises `http`, `tcp`, `dns`, and — when the ICMP capability probe
+ * passes — `ping` in `ClientHello`, so the dispatcher should never send another
+ * type; any other value yielding INCONCLUSIVE is a defensive guard, not an
+ * expected path.
  */
 object CheckRunner {
 
@@ -22,6 +23,7 @@ object CheckRunner {
         "http" -> HttpCheck.run(target, parametersJson)
         "tcp" -> TcpCheck.run(target, parametersJson)
         "dns" -> DnsCheck.run(target, parametersJson)
+        "ping" -> PingCheck.run(target, parametersJson)
         else -> inconclusive("unsupported check type: $checkType")
     }
 }

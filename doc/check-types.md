@@ -30,13 +30,15 @@ The platform defines six check types: `ping`, `tcp`, `http`, `dns`, `tls`,
 | `tcp`  | ✅ v1 | Plain TCP connect — always available. |
 | `dns`  | ✅ v1 | Standard resolver lookups — always available. |
 | `tls`  | ⚠️ deferred | Viable on mobile, but deferred past v1 to land the check pipeline first. |
-| `ping` | ❌ never | ICMP needs raw sockets; Android apps cannot open them. |
+| `ping` | ✅ v1 (capability-gated) | A traceroute on an *unprivileged* ICMP datagram socket (`SOCK_DGRAM, IPPROTO_ICMP`) — not a raw socket. Native-implemented (the ICMP error queue is unavailable to `android.system.Os` before API 33). Advertised only when a runtime probe can open the socket. |
 | `smtp` | ⚠️ deferred | TCP port 25 is widely blocked on mobile carriers; revisit later. |
 
 The app advertises only the types it supports in `ClientHello.Capabilities.supported_check_types`,
-sets `can_send_icmp = false`, and the dispatcher then only ever sends it those
-types. Supporting a type = being able to decode its parameters, execute it,
-and encode its measurements.
+and the dispatcher then only ever sends it those types. `ping` is added to that
+set — and `can_send_icmp` set to true — **only when the ICMP capability probe
+succeeds**; otherwise `ping` is omitted and `can_send_icmp` stays false.
+Supporting a type = being able to decode its parameters, execute it, and encode
+its measurements.
 
 ---
 
@@ -130,6 +132,49 @@ Record rendering: `A`/`AAAA` → IP strings; `CNAME` → the canonical name;
 **Outcome** — `PASS` if at least one record was found; `FAIL` if resolution
 failed or returned an **empty** set (an empty set is a failure, not a pass);
 `TIMEOUT` if the lookup timed out.
+
+---
+
+## `ping`
+
+`ping` is a **traceroute**. `doc/ping-check-contract.md` is the authoritative
+byte-level contract (generated from the platform monorepo); this is a summary.
+IPv4 only — the target is resolved to its first IPv4 address.
+
+**Parameters**
+
+| Key | Type | Default | Notes |
+|---|---|---|---|
+| `count` | int | `4` | 1–20. **Inert** — validated for protocol compatibility but does not scale probing (the engine always sends 3 echoes per hop), matching the reference agent. |
+| `timeout_seconds` | int | `10` | 1–60. Bounds the **whole** traceroute. |
+
+`target` is the hostname or IP to trace to.
+
+**Measurements** — the top-level packet/RTT stats describe the **final,
+target-reaching hop**; the full route is in `hops`.
+
+| Key | Type | Notes |
+|---|---|---|
+| `packets_sent` | int | Probes sent at the final hop (3 in practice); `0` on a total miss. |
+| `packets_recv` | int | How many came back. |
+| `packet_loss_pct` | float | **0..100** percentage. **`0` (not 100) on a total miss** — the loss calc is guarded by `packets_sent > 0`. |
+| `rtt_min_ms` / `rtt_avg_ms` / `rtt_max_ms` | float | Final-hop RTT stats, fractional ms. |
+| `rtt_stddev_ms` | float | **Population** standard deviation (divide by N). |
+| `resolved_ips` | string[] | The resolved IPv4 address (omitted if empty). |
+| `hops` | object[] | Ordered route; each `{ttl, ip?, rtt_ms?[], target?}` (a no-answer hop is just `{"ttl":N}`; the target hop carries `"target":true`). Omitted if empty. |
+
+**Two failure shapes** (per the contract):
+- **Hard errors** — parameter parse / ICMP socket setup failure → `INCONCLUSIVE`
+  with `{"error":"..."}`; DNS resolution failure → `FAIL` with `{"error":"..."}`.
+  These are **not** the measurements shape above.
+- **Ran but unreachable** — the full measurements shape with zeros + the partial
+  `hops` route.
+
+**Outcome** — `PASS` iff the target answered at least one probe (no partial-loss
+threshold — one reply is a PASS); `TIMEOUT` iff the target never answered and the
+time budget ran out; `FAIL` otherwise (route exhausted within budget, or
+resolution failure); `INCONCLUSIVE` on setup failure. The platform trusts this
+outcome verbatim — it does not recompute it from the measurements.
 
 ---
 

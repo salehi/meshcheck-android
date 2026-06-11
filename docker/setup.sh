@@ -26,6 +26,8 @@ docker run --rm \
         && yes | sdkmanager --sdk_root=/sdk \
              "platform-tools" \
              "platforms;android-35" \
-             "build-tools;35.0.0"'
+             "build-tools;35.0.0" \
+             "ndk;27.2.12479018" \
+             "cmake;3.22.1"'
 
 echo "==> Done. Build image and Android SDK are ready."

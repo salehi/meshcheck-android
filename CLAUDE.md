@@ -81,8 +81,21 @@ reason — treat them as settled:
   crypto), `:data` (storage, enrollment, accruals client), `:protocol` (agent
   WebSocket), `:checks` (executors), `:app` (Compose UI + service). Kotlin DSL,
   version catalog.
-- **v1 check types are `http`, `tcp`, `dns`.** `tls` is deferred to a later
-  release; `ping` is excluded permanently; `smtp` is deferred.
+- **v1 check types are `http`, `tcp`, `dns`, and `ping`.** `ping` is a
+  **traceroute** on an unprivileged ICMP datagram socket (`SOCK_DGRAM,
+  IPPROTO_ICMP`), IPv4-only, and is **capability-gated**: the app advertises it
+  (and `can_send_icmp`) only when a runtime probe can open the socket, since some
+  OEMs lock down `net.ipv4.ping_group_range`. It is implemented in **native code**
+  (`:checks/src/main/cpp`) because intermediate-hop discovery needs the ICMP
+  error queue (`recvmsg`/`MSG_ERRQUEUE`), which `android.system.Os` does not
+  expose before API 33. The byte-exact contract is `doc/ping-check-contract.md`.
+  (`ping` was once "excluded permanently" on the false premise that ICMP needs
+  raw sockets — it does not.) `tls` is deferred to a later release; `smtp` is
+  deferred.
+- **`:checks` contains native code.** Built with the NDK (r27c,
+  `27.2.12479018` — 16KB-aligned) + CMake (`3.22.1`) via `externalNativeBuild`;
+  ABIs `arm64-v8a`, `armeabi-v7a`, `x86_64`. The offline Docker build needs
+  these SDK packages — `docker/setup.sh` installs them.
 - **Rolling-session counter** for the in-app jobs figure — it counts only
   results the platform acknowledged as persisted (`ResultAck.persisted`), not
   results merely sent on the wire; the earnings figure is the lifetime total

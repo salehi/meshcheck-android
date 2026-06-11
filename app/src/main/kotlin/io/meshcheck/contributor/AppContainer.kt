@@ -2,6 +2,7 @@ package io.meshcheck.contributor
 
 import android.content.Context
 import android.os.Build
+import io.meshcheck.checks.IcmpCapability
 import io.meshcheck.contributor.service.AndroidTaskGateway
 import io.meshcheck.contributor.service.ContributionPrefs
 import io.meshcheck.data.CredentialStore
@@ -33,9 +34,19 @@ class AppContainer(context: Context) {
 
     private val taskGateway: TaskGateway = AndroidTaskGateway(credentialStore)
 
+    // Advertise `ping` only when this device can open an unprivileged ICMP
+    // socket; some OEMs lock down net.ipv4.ping_group_range. The platform then
+    // never assigns a ping task to a device that cannot run it.
+    private val canSendIcmp: Boolean = IcmpCapability.canSendIcmp()
+
     val agentClient: AgentClient = AgentClient(
         config = AgentConfig(
             agentVersion = BuildConfig.VERSION_NAME,
+            supportedCheckTypes = buildList {
+                add("http"); add("tcp"); add("dns")
+                if (canSendIcmp) add("ping")
+            },
+            canSendIcmp = canSendIcmp,
             // Self-declared, human-readable label (Capabilities.name); the
             // device model is the closest thing we have without app settings.
             nodeName = Build.MODEL.orEmpty(),

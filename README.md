@@ -26,7 +26,10 @@ First-time setup:
 1. Download the Android command-line tools and Gradle distribution zips into
    `docker/vendor/` (gitignored — `docker/Dockerfile` names the exact files
    and versions).
-2. Run `./docker/setup.sh` to build the image and install the Android SDK.
+2. Run `./docker/setup.sh` to build the image and install the Android SDK
+   (this includes the **NDK and CMake** — `:checks` contains native code for the
+   `ping` traceroute check, so re-run `./docker/setup.sh` after pulling a change
+   that bumps the NDK/CMake version).
 
 Then build with the wrapper:
 

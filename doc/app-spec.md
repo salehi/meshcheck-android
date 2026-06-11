@@ -268,18 +268,24 @@ unchanged. Implementation notes specific to Android:
   API 29, so the app **bundles Conscrypt** to provide TLS 1.3 down to API 21.
 - **Messages** — generate Kotlin types from `proto/agent.proto`; one framed
   Protobuf `Envelope` per WebSocket binary frame. No gRPC runtime.
-- **Capabilities** — the app advertises `connection_class = CONNECTION_CLASS_MOBILE`,
-  `can_send_icmp = false`, and a `supported_check_types` set of `http`, `tcp`,
-  `dns` for v1 (`tls` deferred). "Disable check types the OS cannot run" is
-  handled entirely by what `ClientHello` declares; the dispatcher already
-  filters on it — no new platform code.
+- **Capabilities** — the app advertises `connection_class = CONNECTION_CLASS_MOBILE`
+  and a `supported_check_types` set of `http`, `tcp`, `dns` (`tls` deferred),
+  **plus `ping` and `can_send_icmp = true` when a runtime probe can open an
+  unprivileged ICMP datagram socket** (some OEMs lock down
+  `net.ipv4.ping_group_range`; on those, `ping` is omitted and `can_send_icmp`
+  stays false). "Disable check types the OS cannot run" is handled entirely by
+  what `ClientHello` declares; the dispatcher already filters on it — no new
+  platform code.
 - **Reconnect** — on any drop, reconnect with a fresh `ServerHello`/
   `ClientHello`; expect only new Tasks, never catch-up.
 - **Result signing** — Ed25519 signature over the canonical hash defined in
   the protocol doc.
 
-Reachable check types on mobile are limited to those needing no raw sockets;
-v1 ships `http`, `tcp`, and `dns` (`tls` is viable but deferred past v1).
+v1 ships `http`, `tcp`, and `dns` (`tls` is viable but deferred past v1), plus
+`ping` — a traceroute on an *unprivileged* ICMP datagram socket, which (unlike a
+raw socket) Android permits. `ping` needs native code (`:checks/src/main/cpp`),
+because the ICMP error queue used for intermediate-hop discovery is not exposed
+by `android.system.Os` before API 33; see `doc/ping-check-contract.md`.
 Concurrency is low. Heavy checks (headless browser, multi-step transactions)
 are out of scope per the parent phase doc.
 

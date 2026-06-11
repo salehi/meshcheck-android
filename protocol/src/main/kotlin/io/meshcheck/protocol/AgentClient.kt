@@ -346,7 +346,7 @@ class AgentClient(
         platform = config.platform,
         capabilities = Capabilities(
             supported_check_types = config.supportedCheckTypes,
-            can_send_icmp = false,
+            can_send_icmp = config.canSendIcmp,
             connection_class = ConnectionClass.CONNECTION_CLASS_MOBILE,
             name = config.nodeName,
         ),
