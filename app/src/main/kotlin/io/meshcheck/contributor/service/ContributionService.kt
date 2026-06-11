@@ -18,6 +18,7 @@ import io.meshcheck.contributor.AppContainer
 import io.meshcheck.contributor.MainActivity
 import io.meshcheck.contributor.MeshCheckApplication
 import io.meshcheck.contributor.R
+import io.meshcheck.contributor.contribution.ConnectionLocks
 import io.meshcheck.protocol.ConnectionState
 import io.meshcheck.protocol.StopReason
 import kotlinx.coroutines.CoroutineScope
@@ -41,6 +42,7 @@ class ContributionService : Service() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private lateinit var container: AppContainer
     private var running = false
+    private var locks: ConnectionLocks? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -59,6 +61,9 @@ class ContributionService : Service() {
                 stopSelf()
                 return START_NOT_STICKY
             }
+            // Keep the CPU and Wi-Fi radio awake so heartbeats fire and the
+            // socket survives the screen turning off.
+            locks = ConnectionLocks(this).also { it.acquire() }
             observeConnectionState()
             container.agentClient.start(
                 credentials.apiKey,
@@ -71,6 +76,8 @@ class ContributionService : Service() {
     }
 
     override fun onDestroy() {
+        locks?.release()
+        locks = null
         container.agentClient.stop()
         scope.cancel()
         super.onDestroy()

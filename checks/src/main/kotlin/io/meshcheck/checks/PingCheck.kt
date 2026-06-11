@@ -63,9 +63,8 @@ internal object PingCheck {
                 measurements { put("error", "no IPv4 address for $target") },
             )
 
-        val deadlineEpochMs = System.currentTimeMillis() + timeoutMs
         val native = try {
-            PingNative.traceroute(resolvedIp, TRACE_MAX_TTL, TRACE_PROBES, deadlineEpochMs)
+            PingNative.traceroute(resolvedIp, TRACE_MAX_TTL, TRACE_PROBES, timeoutMs)
         } catch (e: UnsatisfiedLinkError) {
             return inconclusive("native ping unavailable")
         }

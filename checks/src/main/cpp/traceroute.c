@@ -42,6 +42,9 @@
 #ifndef IP_TTL
 #define IP_TTL 2
 #endif
+#ifndef CLOCK_BOOTTIME
+#define CLOCK_BOOTTIME 7
+#endif
 
 #define ICMP_ECHO_REQUEST 8
 #define ICMP_ECHO_REPLY 0
@@ -67,9 +70,14 @@ static long long now_monotonic_ns(void) {
     return (long long) ts.tv_sec * 1000000000LL + ts.tv_nsec;
 }
 
-static long long now_realtime_ms(void) {
+// Deadline/timeout clock. CLOCK_BOOTTIME is monotonic (immune to NTP and
+// time-of-day steps) AND advances across suspend, so the timeout bounds true
+// elapsed time. It stays in the same monotonic family as poll()'s timer, so a
+// screen-off suspend can no longer make the wall clock leap ahead of the poll
+// countdown and spuriously trip the deadline.
+static long long now_boottime_ms(void) {
     struct timespec ts;
-    clock_gettime(CLOCK_REALTIME, &ts);
+    clock_gettime(CLOCK_BOOTTIME, &ts);
     return (long long) ts.tv_sec * 1000LL + ts.tv_nsec / 1000000LL;
 }
 
@@ -180,7 +188,7 @@ static jobject result_with_error(JNIEnv *env, jclass cls, jobject res, const cha
 JNIEXPORT jobject JNICALL
 Java_io_meshcheck_checks_PingNative_traceroute(
         JNIEnv *env, jobject thiz, jstring target_ipv4, jint max_ttl, jint probes_per_hop,
-        jlong deadline_epoch_ms) {
+        jlong timeout_ms) {
     (void) thiz;
 
     jclass cls = (*env)->FindClass(env, "io/meshcheck/checks/PingNativeResult");
@@ -222,11 +230,11 @@ Java_io_meshcheck_checks_PingNative_traceroute(
     c.hop_rtt_count = calloc((size_t) (max_ttl + 1), sizeof(int));
     c.hop_is_target = calloc((size_t) (max_ttl + 1), sizeof(int));
 
-    long long deadline_ms = (long long) deadline_epoch_ms;
+    long long deadline_ms = now_boottime_ms() + (long long) timeout_ms;
     int hit_deadline = 0;
 
     for (int ttl = 1; ttl <= max_ttl; ttl++) {
-        if (now_realtime_ms() >= deadline_ms) {
+        if (now_boottime_ms() >= deadline_ms) {
             hit_deadline = 1;
             break;
         }
@@ -244,14 +252,18 @@ Java_io_meshcheck_checks_PingNative_traceroute(
             sendto(fd, echo, sizeof(echo), 0, (struct sockaddr *) &dst, sizeof(dst));
         }
 
-        long long hop_deadline = now_realtime_ms() + PER_HOP_MS;
+        long long hop_deadline = now_boottime_ms() + PER_HOP_MS;
         if (hop_deadline > deadline_ms) hop_deadline = deadline_ms;
         for (;;) {
-            long long remaining = hop_deadline - now_realtime_ms();
+            long long remaining = hop_deadline - now_boottime_ms();
             if (remaining <= 0) break;
             struct pollfd pfd = {.fd = fd, .events = POLLIN, .revents = 0};
             int pr = poll(&pfd, 1, (int) remaining);
-            if (pr <= 0) break;  // timeout or poll error
+            if (pr < 0) {
+                if (errno == EINTR) continue;  // signal — loop top recomputes `remaining`
+                break;                          // real poll error
+            }
+            if (pr == 0) break;                 // hop budget elapsed
             if (pfd.revents & POLLERR) drain_errqueue(&c, fd, ttl);
             if (pfd.revents & POLLIN) drain_replies(&c, fd);
             if (c.reached) break;
@@ -260,7 +272,7 @@ Java_io_meshcheck_checks_PingNative_traceroute(
         if (c.reached) break;
     }
 
-    int timed_out = !c.reached && (hit_deadline || now_realtime_ms() >= deadline_ms);
+    int timed_out = !c.reached && (hit_deadline || now_boottime_ms() >= deadline_ms);
     int hop_count = c.max_probed_ttl;
 
     // Flatten per-hop RTTs into a single array + offset index.

@@ -17,14 +17,16 @@ internal object PingNative {
      *
      * @param maxTtl maximum hop count to probe (the platform agent uses 30).
      * @param probesPerHop echoes sent per TTL (the platform agent uses 3).
-     * @param deadlineEpochMs absolute wall-clock deadline (unix millis) for the
-     *   whole traceroute — the engine never exceeds it.
+     * @param timeoutMs whole-traceroute budget in milliseconds — the engine
+     *   never exceeds it. Measured on a suspend-aware monotonic clock
+     *   (`CLOCK_BOOTTIME`), so it bounds true elapsed time and is immune to
+     *   clock steps and screen-off suspends.
      */
     external fun traceroute(
         targetIpv4: String,
         maxTtl: Int,
         probesPerHop: Int,
-        deadlineEpochMs: Long,
+        timeoutMs: Long,
     ): PingNativeResult
 }
 

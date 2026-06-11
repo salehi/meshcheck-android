@@ -181,6 +181,26 @@ Samsung) kill the service shortly after the app is swiped away — defeating the
 whole "keep working when closed" requirement. The app walks the user through
 the system "don't optimize" dialog the first time they start contributing.
 
+### CPU and Wi-Fi locks
+
+A foreground service keeps the *process* alive but does not keep the CPU or
+Wi-Fi radio awake. When the screen turns off and the device suspends, the
+heartbeat/ping timers stop firing — and the platform drops a connection after
+three missed heartbeats — while the Wi-Fi radio power-saves out from under the
+socket. So while it is contributing the service holds a `PARTIAL_WAKE_LOCK` and
+a `WifiManager` Wi-Fi lock (`ConnectionLocks`), keeping the application
+processor running and the radio active. Both are held for the whole service
+lifetime, including the `Connecting`/`Reconnecting` gaps when re-establishing
+the socket matters most; the Wi-Fi lock is an inert no-op on cellular. The
+deliberate battery cost is consistent with the locked "no scheduling controls
+in v1" decision — the node contributes whenever it is Contributing.
+
+The native `ping` traceroute does not rely on the wake lock for correctness: its
+deadline is measured on `CLOCK_BOOTTIME` (suspend-aware and immune to clock
+steps), so a check stays correct even on OEMs that ignore the wake lock, rather
+than aborting with a corrupted empty-route result when a suspend desyncs the
+wall clock from the poll timer.
+
 ### Best-effort, not a guarantee
 
 Even with all of the above, 24/7 uptime cannot be guaranteed: force-stop, the
@@ -252,7 +272,7 @@ phase doc — it is simpler and needs no login UI in the app.
 | `FOREGROUND_SERVICE_SPECIAL_USE` | Declare the service type | Android 14+; needs Play Console justification. |
 | `RECEIVE_BOOT_COMPLETED` | Restart the service after reboot | Normal, auto-granted. |
 | `INTERNET`, `ACCESS_NETWORK_STATE` | Connect; detect connectivity | Normal, auto-granted. |
-| `WAKE_LOCK` | Hold the CPU briefly during check execution | Normal, auto-granted. |
+| `WAKE_LOCK` | Keep the CPU awake so heartbeats fire and native checks measure time correctly while the screen is off | Normal, auto-granted. |
 | `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` | Launch the exemption dialog | Used to open the system dialog, not auto-exempt. |
 
 "Ask for background perm" is, in reality, this set — primarily camera,
