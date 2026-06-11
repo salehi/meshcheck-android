@@ -169,6 +169,7 @@ class AgentClient(
                 try {
                     gateway.runTask(task)?.let { result ->
                         sendEnvelope(webSocket, wrap(result = result))
+                        AppLog.i(TAG, "Result submitted task=${task.task_id} outcome=${result.outcome}")
                         // Counted as done only once the platform acks it as
                         // persisted (see the result_ack branch in handle).
                         pendingAcks.add(task.task_id)
@@ -176,8 +177,9 @@ class AgentClient(
                 } catch (_: CancellationException) {
                     // Task cancelled (TaskCancel, or the connection ended) —
                     // submit nothing; the platform re-dispatches.
-                } catch (_: Exception) {
+                } catch (e: Exception) {
                     // Executor failure — submit nothing.
+                    AppLog.w(TAG, "Task execution failed task=${task.task_id}: ${e.javaClass.simpleName}: ${e.message}")
                 } finally {
                     inflight.decrementAndGet()
                     taskJobs.remove(task.task_id)
@@ -205,11 +207,16 @@ class AgentClient(
                 envelope.task != null -> {
                     val task = envelope.task!!
                     if (inflight.get() >= maxInflight.get()) {
+                        AppLog.w(TAG, "Task rejected (overload) task=${task.task_id}")
                         sendEnvelope(
                             webSocket,
                             wrap(taskAck = TaskAck(task.task_id, TaskAckStatus.TASK_ACK_REJECTED_OVERLOAD)),
                         )
                     } else {
+                        AppLog.i(
+                            TAG,
+                            "Task received task=${task.task_id} type=${task.check_type} target=${task.target}",
+                        )
                         sendEnvelope(
                             webSocket,
                             wrap(taskAck = TaskAck(task.task_id, TaskAckStatus.TASK_ACK_ACCEPTED)),
@@ -394,7 +401,7 @@ class AgentClient(
 
     private fun buildHttpClient(): OkHttpClient {
         val builder = OkHttpClient.Builder()
-            .pingInterval(0, TimeUnit.MILLISECONDS) // app-level Heartbeat instead
+            .pingInterval(20, TimeUnit.SECONDS) // transport PONGs keep the proxy read-timer alive
             .connectTimeout(20, TimeUnit.SECONDS)
             .writeTimeout(20, TimeUnit.SECONDS)
             .readTimeout(0, TimeUnit.MILLISECONDS)  // long-lived connection

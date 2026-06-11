@@ -104,7 +104,8 @@ static void drain_replies(trace_ctx *c, int fd) {
         unsigned char buf[512];
         struct sockaddr_in from;
         socklen_t from_len = sizeof(from);
-        ssize_t n = recvfrom(fd, buf, sizeof(buf), 0, (struct sockaddr *) &from, &from_len);
+        ssize_t n = recvfrom(fd, buf, sizeof(buf), MSG_DONTWAIT,
+                             (struct sockaddr *) &from, &from_len);
         if (n < 0) break;          // EAGAIN — queue drained
         if (n < 8) continue;
         if (buf[0] != ICMP_ECHO_REPLY) continue;
@@ -140,7 +141,7 @@ static void drain_errqueue(trace_ctx *c, int fd, int current_ttl) {
         msg.msg_control = ctrl;
         msg.msg_controllen = sizeof(ctrl);
 
-        ssize_t n = recvmsg(fd, &msg, MSG_ERRQUEUE);
+        ssize_t n = recvmsg(fd, &msg, MSG_ERRQUEUE | MSG_DONTWAIT);
         if (n < 0) break;          // EAGAIN — queue drained
 
         int seq = -1;
