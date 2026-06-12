@@ -24,14 +24,20 @@ object EnrollmentQr {
     private const val EXPECTED_TYPE = "meshcheck-enroll"
     private const val SUPPORTED_VERSION = 1
 
+    // The "pair this phone" deep link is meshcheck://enroll#<base64>. The intent
+    // path strips this to the fragment itself, but a user who pastes the whole
+    // link into the "Paste a pairing code" field hands us the full URL.
+    private const val DEEP_LINK_PREFIX = "meshcheck://enroll#"
+
     /**
      * Decodes a scanned QR string, or returns null if it is not a MeshCheck
-     * enrollment code of a version this app understands. The QR carries
-     * base64(JSON); raw JSON is also accepted so a pasted payload works in
-     * testing.
+     * enrollment code of a version this app understands. Accepts base64(JSON)
+     * (the QR / copied code), raw JSON (handy for testing), or a full
+     * `meshcheck://enroll#…` deep-link URL.
      */
     fun parse(scanned: String): EnrollmentPayload? {
-        val json = decodeJson(scanned.trim()) ?: return null
+        val candidate = scanned.trim().removePrefix(DEEP_LINK_PREFIX)
+        val json = decodeJson(candidate) ?: return null
         if (json.optString("typ") != EXPECTED_TYPE) return null
         if (json.optInt("v", -1) != SUPPORTED_VERSION) return null
 

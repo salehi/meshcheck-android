@@ -11,6 +11,9 @@ import io.meshcheck.data.enrollment.Enroller
 import io.meshcheck.protocol.AgentClient
 import io.meshcheck.protocol.AgentConfig
 import io.meshcheck.protocol.TaskGateway
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 
 /**
  * The app's manual dependency-injection root. One instance lives for the
@@ -25,6 +28,17 @@ class AppContainer(context: Context) {
     // Enrollment is local: the scanned QR carries the gateway URL and the
     // device-enrollment JWT, which is the gateway credential itself (no redeem).
     val enroller: Enroller = Enroller(credentialStore)
+
+    // A pairing payload that arrived outside the camera flow — from the
+    // `meshcheck://enroll` deep link (handled in MainActivity, which has no
+    // Compose state). The enrollment UI collects this and feeds it into the
+    // same Enroller.enroll path. One-shot: cleared once consumed.
+    private val _pendingEnrollment = MutableStateFlow<String?>(null)
+    val pendingEnrollment: StateFlow<String?> = _pendingEnrollment.asStateFlow()
+
+    fun offerEnrollmentPayload(raw: String) { _pendingEnrollment.value = raw }
+
+    fun clearPendingEnrollment() { _pendingEnrollment.value = null }
 
     val contributionPrefs: ContributionPrefs = ContributionPrefs(context)
 

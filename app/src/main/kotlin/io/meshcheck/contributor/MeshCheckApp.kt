@@ -9,6 +9,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -17,6 +19,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import io.meshcheck.contributor.contribution.ContributorScreen
+import io.meshcheck.core.diagnostics.AppLog
 import io.meshcheck.contributor.diagnostics.LogScreen
 import io.meshcheck.contributor.enrollment.EnrollmentScreen
 import io.meshcheck.contributor.settings.SettingsButton
@@ -38,6 +41,17 @@ fun MeshCheckApp(container: AppContainer) {
     var showLogs by rememberSaveable { mutableStateOf(false) }
     var showSettings by rememberSaveable { mutableStateOf(false) }
 
+    // A pairing payload from the meshcheck://enroll deep link. On an unenrolled
+    // device it flows into EnrollmentScreen to auto-redeem; on an already-linked
+    // device we ignore it (re-binding would silently overwrite the credential).
+    val pendingEnrollment by container.pendingEnrollment.collectAsState()
+    LaunchedEffect(pendingEnrollment, enrolled) {
+        if (pendingEnrollment != null && enrolled) {
+            AppLog.i("DeepLink", "Ignoring enrollment payload; device already linked")
+            container.clearPendingEnrollment()
+        }
+    }
+
     Box(modifier = Modifier.fillMaxSize()) {
         if (showLogs) {
             LogScreen(onClose = { showLogs = false })
@@ -51,6 +65,8 @@ fun MeshCheckApp(container: AppContainer) {
                 EnrollmentScreen(
                     enroller = container.enroller,
                     onEnrolled = { enrolled = true },
+                    incomingPayload = pendingEnrollment,
+                    onPayloadConsumed = { container.clearPendingEnrollment() },
                 )
             }
 

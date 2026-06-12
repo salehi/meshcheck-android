@@ -20,10 +20,13 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -70,15 +73,23 @@ private sealed interface EnrollmentUiState {
  * First-launch flow: explain what contributing means, scan the dashboard QR
  * for an enrollment token, then redeem it through [Enroller]. On success
  * [onEnrolled] is called and the host swaps to the contributor screen.
+ *
+ * Besides the camera, two other transports feed the same redeem path: an
+ * [incomingPayload] arriving from the `meshcheck://enroll` deep link (consumed
+ * once via [onPayloadConsumed]), and the "Paste a pairing code" fallback for
+ * when the deep link doesn't fire. All three carry the same envelope.
  */
 @Composable
 fun EnrollmentScreen(
     enroller: Enroller,
     onEnrolled: () -> Unit,
+    incomingPayload: String? = null,
+    onPayloadConsumed: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var uiState by remember { mutableStateOf<EnrollmentUiState>(EnrollmentUiState.Explainer) }
+    var showPaste by remember { mutableStateOf(false) }
 
     fun redeem(token: String) {
         uiState = EnrollmentUiState.Enrolling
@@ -127,8 +138,21 @@ fun EnrollmentScreen(
         }
     }
 
+    // A deep-link payload bypasses the camera and redeems straight away. Consume
+    // it first so clearing the source flow (which re-keys this effect to null)
+    // can't replay it; redeem runs on `scope`, not this effect, so it survives.
+    LaunchedEffect(incomingPayload) {
+        incomingPayload?.let {
+            onPayloadConsumed()
+            redeem(it)
+        }
+    }
+
     when (val state = uiState) {
-        EnrollmentUiState.Explainer -> ExplainerContent(onScan = ::startScan)
+        EnrollmentUiState.Explainer -> ExplainerContent(
+            onScan = ::startScan,
+            onPaste = { showPaste = true },
+        )
         EnrollmentUiState.Scanning -> ScanningContent(
             onToken = ::redeem,
             onCancel = { uiState = EnrollmentUiState.Explainer },
@@ -140,10 +164,20 @@ fun EnrollmentScreen(
             onRetry = { uiState = EnrollmentUiState.Explainer },
         )
     }
+
+    if (showPaste) {
+        PasteCodeDialog(
+            onDismiss = { showPaste = false },
+            onSubmit = { code ->
+                showPaste = false
+                redeem(code)
+            },
+        )
+    }
 }
 
 @Composable
-private fun ExplainerContent(onScan: () -> Unit) {
+private fun ExplainerContent(onScan: () -> Unit, onPaste: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -181,7 +215,57 @@ private fun ExplainerContent(onScan: () -> Unit) {
             style = MaterialTheme.typography.bodySmall,
             textAlign = TextAlign.Center,
         )
+        Spacer(Modifier.height(16.dp))
+        // Fallback for when the dashboard's "pair this phone" deep link didn't
+        // open the app — the user can copy the pairing code and paste it here.
+        TextButton(onClick = onPaste) {
+            Text("Paste a pairing code instead")
+        }
     }
+}
+
+/**
+ * The "Copy pairing code" fallback: the user pastes the envelope the dashboard
+ * copied. The field accepts the bare code, the raw JSON, or the full
+ * `meshcheck://enroll#…` link — [EnrollmentQr.parse] normalizes all three.
+ */
+@Composable
+private fun PasteCodeDialog(onDismiss: () -> Unit, onSubmit: (String) -> Unit) {
+    var code by remember { mutableStateOf("") }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Paste a pairing code") },
+        text = {
+            Column {
+                Text(
+                    text = "On your MeshCheck dashboard, choose “Add an Android " +
+                        "device” and tap “Copy pairing code”, then paste it here.",
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                Spacer(Modifier.height(12.dp))
+                OutlinedTextField(
+                    value = code,
+                    onValueChange = { code = it },
+                    label = { Text("Pairing code") },
+                    singleLine = false,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { onSubmit(code.trim()) },
+                enabled = code.isNotBlank(),
+            ) {
+                Text("Link device")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        },
+    )
 }
 
 @Composable
