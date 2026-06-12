@@ -19,6 +19,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -73,9 +74,12 @@ fun LogScreen(onClose: () -> Unit) {
 
 @Composable
 private fun LogRow(entry: AppLog.Entry) {
+    // The level palette is fixed RGB, so pick the variant that reads against the
+    // current background rather than letting dark text fall onto a dark surface.
+    val dark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
     Text(
         text = "${TIME_FORMAT.format(Date(entry.atMillis))} ${entry.tag}: ${entry.message}",
-        color = entry.level.color(),
+        color = entry.level.color(dark),
         fontFamily = FontFamily.Monospace,
         fontSize = 11.sp,
         modifier = Modifier
@@ -84,11 +88,11 @@ private fun LogRow(entry: AppLog.Entry) {
     )
 }
 
-private fun AppLog.Level.color(): Color = when (this) {
-    AppLog.Level.DEBUG -> Color(0xFF9E9E9E)
-    AppLog.Level.INFO -> Color(0xFF263238)
-    AppLog.Level.WARN -> Color(0xFFE65100)
-    AppLog.Level.ERROR -> Color(0xFFC62828)
+private fun AppLog.Level.color(dark: Boolean): Color = when (this) {
+    AppLog.Level.DEBUG -> if (dark) Color(0xFFB0BEC5) else Color(0xFF9E9E9E)
+    AppLog.Level.INFO -> if (dark) Color(0xFFECEFF1) else Color(0xFF263238)
+    AppLog.Level.WARN -> if (dark) Color(0xFFFFB74D) else Color(0xFFE65100)
+    AppLog.Level.ERROR -> if (dark) Color(0xFFEF9A9A) else Color(0xFFC62828)
 }
 
 private val TIME_FORMAT = SimpleDateFormat("HH:mm:ss.SSS", Locale.US)
