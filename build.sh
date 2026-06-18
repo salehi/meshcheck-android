@@ -81,6 +81,31 @@ if [ "$#" -eq 0 ]; then
     set -- assembleDebug assembleRelease
 fi
 
+# Version: the git tag is the single source of truth (see app/build.gradle.kts
+# and .github/workflows/release.yml). CI passes -PversionName/-PversionCode
+# derived from the pushed tag; for local builds we derive the same values from
+# the most recent reachable tag, so a locally built APK reports the real version
+# instead of regressing to the 0.1.0/versionCode-1 Gradle fallback. The prefix
+# stripping and versionCode formula match the release workflow exactly. If the
+# caller passes their own -PversionName, theirs wins and we inject nothing.
+VERSION_ARGS=()
+case " $* " in
+    *" -PversionName="*) : ;;   # caller set it explicitly — don't override
+    *)
+        RAW_TAG="$(git describe --tags --abbrev=0 2>/dev/null || true)"
+        VERSION="${RAW_TAG#debug-}"; VERSION="${VERSION#release-}"; VERSION="${VERSION%.}"
+        if printf '%s' "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            IFS=. read -r MAJOR MINOR PATCH <<< "$VERSION"
+            # Base-10 forced so a zero-padded segment is never read as octal.
+            VERSION_CODE=$(( 10#$MAJOR * 10000 + 10#$MINOR * 100 + 10#$PATCH ))
+            VERSION_ARGS=( "-PversionName=$VERSION" "-PversionCode=$VERSION_CODE" )
+            echo ">> build.sh: version $VERSION (versionCode $VERSION_CODE) from git tag '$RAW_TAG'"
+        else
+            echo ">> build.sh: no version tag found — using app/build.gradle.kts defaults (0.1.0)"
+        fi
+        ;;
+esac
+
 # Bind-mount sources must exist before `docker run`, otherwise Docker creates
 # them as root and the --user mapping below cannot write into them.
 mkdir -p "$CACHE/gradle" "$CACHE/android-sdk"
@@ -117,4 +142,4 @@ exec docker run --rm \
     -v "$CACHE/gradle":/.gradle \
     -v "$CACHE/android-sdk":/sdk \
     "$IMAGE" \
-    gradle $GRADLE_FLAGS "$@"
+    gradle $GRADLE_FLAGS ${VERSION_ARGS[@]+"${VERSION_ARGS[@]}"} "$@"

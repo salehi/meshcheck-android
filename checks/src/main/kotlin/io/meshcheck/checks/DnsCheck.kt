@@ -12,6 +12,8 @@ import org.xbill.DNS.Lookup
 import org.xbill.DNS.MXRecord
 import org.xbill.DNS.NSRecord
 import org.xbill.DNS.Record
+import org.xbill.DNS.ResolverConfig
+import org.xbill.DNS.SimpleResolver
 import org.xbill.DNS.TXTRecord
 import org.xbill.DNS.TextParseException
 import org.xbill.DNS.Type
@@ -50,12 +52,23 @@ internal object DnsCheck {
     }
 
     private fun resolve(target: String, recordType: String, type: Int): CheckResult {
-        val startNanos = System.nanoTime()
-        val records = try {
-            Lookup(target, type).run()
+        val lookup = try {
+            Lookup(target, type)
         } catch (e: TextParseException) {
             return inconclusive("invalid dns target: $target")
         }
+        // Pin to an explicit resolver so the reported `nameserver` is provably
+        // the server queried, rather than the default ExtendedResolver's pick.
+        val server = ResolverConfig.getCurrentConfig().server()
+        val nameserver = if (server != null) {
+            lookup.setResolver(SimpleResolver(server))
+            "${server.address.hostAddress}:${server.port}"
+        } else {
+            "system"
+        }
+
+        val startNanos = System.nanoTime()
+        val records = lookup.run()
         val latencyMs = elapsedMs(startNanos)
         val rendered = records?.mapNotNull(::renderRecord).orEmpty()
         // An empty record set is a failure, not a pass (see check-types.md).
@@ -69,6 +82,7 @@ internal object DnsCheck {
                 put("record_count", rendered.size)
                 put("records", JSONArray(rendered))
                 put("latency_ms", latencyMs)
+                put("nameserver", nameserver)
             },
         )
     }

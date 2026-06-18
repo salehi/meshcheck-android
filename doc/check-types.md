@@ -125,6 +125,7 @@ out; `FAIL` otherwise (e.g. connection refused).
 | `record_count` | int | Number of records. |
 | `records` | string[] | Rendered records (see below). |
 | `latency_ms` | float | Resolution time. |
+| `nameserver` | string | The resolver queried, as `host:port` (e.g. `8.8.8.8:53`). |
 
 Record rendering: `A`/`AAAA` → IP strings; `CNAME` → the canonical name;
 `MX` → `"<pref> <host>"`; `TXT` → the text strings; `NS` → nameserver hosts.
