@@ -82,6 +82,14 @@ reason — treat them as settled:
   dense enrollment QR faster/at more angles; the camera runs `ImageAnalysis` at
   1280×720 with tap-to-focus.
 - **OkHttp** for the WebSocket.
+- **No standing assignments.** Mobile Nodes only ever take per-Task work: the
+  OS suspends the agent, so it cannot run Monitors on its own clock. The
+  platform excludes `connection_class = mobile`, and `ClientHello` leaves
+  `supports_assignments = false` / `probe_budget_per_minute = 0`. A stray
+  `AssignmentSet` or `SlotResultBatchAck` is logged and ignored.
+- **Every Task gets exactly one `TaskAck`** — `ACCEPTED` or `REJECTED_*`, never
+  silence. Since agent 0.4.0 a rejection resolves the Task at once on the
+  platform (as "rejected", with the reason) instead of waiting for a timeout.
 - **FCM push-wake is deferred** — v1 relies only on the foreground service.
 - **Multi-module Gradle project** — `:core` (Wire-generated proto types +
   crypto), `:data` (storage, enrollment), `:protocol` (agent
@@ -169,6 +177,12 @@ The app talks to the MeshCheck platform. These are the touch points:
 `proto/agent.proto` is **vendored from the MeshCheck platform monorepo at a
 pinned version.** It is the single source of truth for every message on the
 wire; the app generates Kotlin message types from it.
+
+**Pinned version: agent 0.4.0** (re-synced 2026-10-17; subprotocol still
+`meshcheck.agent.v1`). The file is the agent repo's `proto/agent.proto` byte
+for byte. 0.4.0 added standing assignments (`AssignmentSet`,
+`SlotResultBatch`, `SlotResultBatchAck`, `ClientHello.supports_assignments` /
+`probe_budget_per_minute`) — purely additive; this app does not use them.
 
 Rule: **do not edit `agent.proto` in this repo.** When the platform revs the
 protocol, re-sync the file deliberately and regenerate. The protocol is

@@ -158,5 +158,8 @@ platform monorepo. They are vendored at a pinned version. When the platform
 revs the protocol, re-copy both files deliberately and regenerate the app's
 message types. See `CLAUDE.md` § "The protocol coupling".
 
+**Pinned version:** `proto/agent.proto` is at **agent 0.4.0**, re-synced
+2026-10-17 (subprotocol still `meshcheck.agent.v1`).
+
 `doc/check-types.md` is a hand transcription of the platform's `checkspec`
 package — if the platform adds or changes a check type, update it too.

@@ -298,6 +298,12 @@ unchanged. Implementation notes specific to Android:
   stays false). "Disable check types the OS cannot run" is handled entirely by
   what `ClientHello` declares; the dispatcher already filters on it — no new
   platform code.
+- **Tasks only, never standing assignments** — the OS suspends the agent, so
+  it cannot run scheduled Monitors on its own clock. `ClientHello` leaves
+  `supports_assignments = false`, the platform excludes mobile Nodes anyway,
+  and a stray `AssignmentSet` / `SlotResultBatchAck` is logged and ignored.
+- **Always ack** — every Task gets exactly one `TaskAck`, `ACCEPTED` or
+  `REJECTED_*`. A rejection resolves the Task on the platform at once.
 - **Reconnect** — on any drop, reconnect with a fresh `ServerHello`/
   `ClientHello`; expect only new Tasks, never catch-up.
 - **Result signing** — Ed25519 signature over the canonical hash defined in

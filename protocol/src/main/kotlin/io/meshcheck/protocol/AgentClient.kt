@@ -257,6 +257,13 @@ class AgentClient(
                     }
                     AppLog.d(TAG, "ResultAck task=${ack.task_id} persisted=${ack.persisted}")
                 }
+
+                envelope.assignment_set != null || envelope.slot_result_batch_ack != null -> {
+                    // Standing assignments are never given to mobile Nodes, and
+                    // ClientHello does not opt in. Should one arrive anyway,
+                    // ignore it — the per-Task path is unaffected.
+                    AppLog.w(TAG, "Ignoring unexpected standing-assignment message id=${envelope.message_id}")
+                }
                 // error and agent-sent types: nothing to do here.
             }
         }
@@ -278,8 +285,15 @@ class AgentClient(
 
             override fun onMessage(webSocket: WebSocket, bytes: ByteString) {
                 val envelope = runCatching { Envelope.ADAPTER.decode(bytes.toByteArray()) }
+                    .onFailure { AppLog.w(TAG, "Dropping undecodable envelope: ${it.message}") }
                     .getOrNull() ?: return
-                handle(webSocket, envelope)
+                // An exception escaping here would fail the WebSocket; one bad
+                // message must never cost the connection.
+                try {
+                    handle(webSocket, envelope)
+                } catch (e: Exception) {
+                    AppLog.w(TAG, "Envelope handling failed: ${e.javaClass.simpleName}: ${e.message}")
+                }
             }
 
             override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
@@ -358,6 +372,10 @@ class AgentClient(
             name = config.nodeName,
         ),
         ed25519_pubkey = ByteString.of(*publicKey),
+        // Mobile Nodes take Tasks only: the OS suspends the agent, so it cannot
+        // keep a standing schedule on its own clock.
+        supports_assignments = false,
+        probe_budget_per_minute = 0,
     )
 
     private fun wrap(

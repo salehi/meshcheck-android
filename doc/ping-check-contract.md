@@ -18,7 +18,7 @@ The shapes are defined once and shared by both the Platform and the reference No
 | Platform-side ingestion & aggregation | [internal/collect/collect.go](../../internal/collect/collect.go) | AGPL-3.0 |
 | Reference agent ping implementation (behavioral spec) | [agent/cmd/agent/checks.go](../../agent/cmd/agent/checks.go) | AGPL-3.0 |
 
-**Version pin:** the submodule is pinned by the superproject to commit **`affd7fa42e4cfe59ec81532d8e007930af88dfb7`** (`heads/main`). **There is no git tag on that commit** — it is pinned by SHA only. The `proto/agent.proto` you generate against is the copy *inside* that commit; the duplicate at [android-app/proto/agent.proto](../../android-app/proto/agent.proto) is byte-identical.
+**Version pin:** the submodule is pinned by the superproject to commit **`affd7fa42e4cfe59ec81532d8e007930af88dfb7`** (`heads/main`). **There is no git tag on that commit** — it is pinned by SHA only. The `proto/agent.proto` you generate against is the copy *inside* that commit; the duplicate at [android-app/proto/agent.proto](../../android-app/proto/agent.proto) was byte-identical at that pin. **Since 2026-10-17 the app's copy is re-synced to agent 0.4.0**, which adds only the standing-assignment messages; nothing this contract relies on (`ResultSubmit`, `ResultOutcome`) changed.
 
 > The `checkspec` and `resultsig` packages are deliberately Apache-licensed and live in the public agent submodule precisely so a third-party agent can import or re-implement them without touching the AGPL Platform code.
 

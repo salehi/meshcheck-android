@@ -331,6 +331,16 @@ After the handshake, once the platform knows the agent's version (from `ClientHe
 
 This is purely additive to the protocol: an older agent that predates the message ignores the unknown `Envelope` variant, exactly as the oneof's forward-compatibility rule (below) intends.
 
+### Task Rejection
+
+The agent acks every `TaskAssignment` with exactly one `TaskAck`. A `TASK_ACK_REJECTED_*` status resolves the Task at once as `rejected`, with the reason, instead of the platform waiting for it to time out — so an agent must never stay silent on a Task it will not run.
+
+### Standing Assignments
+
+*Added in agent 0.4.0; still `meshcheck.agent.v1`.* Instead of one `TaskAssignment` per run, the platform can give a Node **standing assignments** — "run this check every `interval_seconds`, at `phase_ms`" — which the Node runs on its own clock. The platform sends an `AssignmentSet` (full or incremental) only when something changes; the Node streams signed `SlotResult`s back in `SlotResultBatch`es, each acknowledged by a `SlotResultBatchAck`. An agent opts in with `ClientHello.supports_assignments` and caps the load with `probe_budget_per_minute`; an agent that leaves it false only ever gets Tasks.
+
+**Mobile Nodes never take standing assignments.** The OS suspends a mobile agent, so it cannot keep a schedule; the platform excludes `connection_class = mobile`, and the Android app leaves `supports_assignments` false and uses the per-Task path only.
+
 ---
 
 ## Disconnection and Re-dispatch
