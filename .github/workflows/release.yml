@@ -71,8 +71,14 @@ jobs:
           distribution: temurin
           java-version: '17'
 
+      # The action's default `packages` is "tools platform-tools", but the
+      # legacy `tools` package no longer exists in cmdline-tools 16+, so
+      # sdkmanager fails. Ask only for platform-tools; the next step installs
+      # the rest.
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
 
       # Install exactly what the build needs (matches docker/setup.sh).
       - name: Install Android SDK packages
